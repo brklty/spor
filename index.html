@@ -6,7 +6,18 @@
 <title>Spor Takip</title>
 <style>
 body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin:0; background:#f2f2f7; }
-header { background:#111; color:white; padding:16px; font-size:20px; text-align:center; }
+header { background:#111; color:white; padding:16px; font-size:20px; text-align:center; position:relative; }
+.home-btn {
+  position:absolute;
+  right:12px;
+  top:12px;
+  background:#333;
+  color:white;
+  border:none;
+  border-radius:8px;
+  padding:6px 10px;
+  font-size:18px;
+}
 .container { padding:16px; }
 .card { background:white; border-radius:12px; padding:16px; margin-bottom:12px; }
 button { font-size:17px; padding:14px; width:100%; border:none; border-radius:10px; background:black; color:white; margin-bottom:10px; }
@@ -28,7 +39,11 @@ canvas { width:100%; height:260px; border:1px solid #eee; border-radius:8px; }
 </head>
 <body>
 
-<header>🏋️ Spor Takip</header>
+<header>
+  🏋️ Spor Takip
+  <button id="homeBtn" class="home-btn" onclick="goHome()" style="display:none">🏠</button>
+</header>
+
 <div class="container" id="app"></div>
 
 <input type="file" id="fileInput" accept=".csv" style="display:none" />
@@ -57,29 +72,39 @@ function goMeasureCharts(){ state.screen="measureCharts"; render(); }
 // ===== Render =====
 function render(){
   const app = document.getElementById("app");
+  const homeBtn = document.getElementById("homeBtn");
+
+  homeBtn.style.display = (state.screen === "home") ? "none" : "block";
+
   app.innerHTML = "";
 
   if(state.screen==="home"){
     app.innerHTML = `
       <div class="card"><button onclick="goPrograms()">📋 Program Seç</button></div>
-      <div class="card"><button onclick="importProgram()">➕ Yeni Program Ekle (CSV)</button></div>
       <div class="card"><button onclick="goMeasures()">⚖️ Ölçü Takibi</button></div>
+      <div class="card"><button onclick="importProgram()">➕ Yeni Program Ekle (CSV)</button></div>
+      <div class="card"><button onclick="alert('Yedek içe aktarma bir sonraki sürümde gelecek 🙂')">📥 Yedek İçe Aktar</button></div>
     `;
   }
+
+  // 🔴 BURADAN SONRASI: SENİN GÖNDERDİĞİN STABİL KODUN AYNISI
+
 
   if(state.screen==="programs"){
     const programs = getPrograms();
     let html = `<div class="card"><h3>📋 Programlar</h3>`;
     programs.forEach((p,i)=>{
       html += `
-        <div class="list-item">
-          <div class="list-main" onclick="openProgram(${i})">${p.name}</div>
-          <button class="icon-btn export" onclick="exportProgramMenu(${i})">📤</button>
-          <button class="icon-btn" onclick="renameProgram(${i})">✏️</button>
-          <button class="icon-btn delete" onclick="deleteProgram(${i})">🗑️</button>
+        <div class="list-item" onclick="openProgram(${i})">
+          <div class="list-main">${p.name}</div>
+          <button class="icon-btn export" onclick="event.stopPropagation(); exportProgramMenu(${i})">📤</button>
+          <button class="icon-btn" onclick="event.stopPropagation(); renameProgram(${i})">✏️</button>
+          <button class="icon-btn delete" onclick="event.stopPropagation(); deleteProgram(${i})">🗑️</button>
         </div>
-      `;
-    });
+  `;
+
+});
+
     html += `</div><button onclick="goHome()">⬅️ Geri</button>`;
     app.innerHTML = html;
   }
