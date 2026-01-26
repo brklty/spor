@@ -47,6 +47,8 @@ canvas { width:100%; height:260px; border:1px solid #eee; border-radius:8px; }
 <div class="container" id="app"></div>
 
 <input type="file" id="fileInput" accept=".csv" style="display:none" />
+<input type="file" id="backupInput" accept=".json" style="display:none" />
+
 
 <script>
 const BOM = "\uFEFF";
@@ -83,7 +85,8 @@ function render(){
       <div class="card"><button onclick="goPrograms()">📋 Program Seç</button></div>
       <div class="card"><button onclick="goMeasures()">⚖️ Ölçü Takibi</button></div>
       <div class="card"><button onclick="importProgram()">➕ Yeni Program Ekle (CSV)</button></div>
-      <div class="card"><button onclick="alert('Yedek içe aktarma bir sonraki sürümde gelecek 🙂')">📥 Yedek İçe Aktar</button></div>
+      <div class="card"><button onclick="startImportBackup()">📥 Yedek İçe Aktar</button></div>
+
     `;
   }
 
@@ -469,6 +472,91 @@ function exportMeasuresCSV(){
   const csv = BOM + rows.join("\n");
   downloadFile("olcu_verilerim.csv", csv, "text/csv;charset=utf-8;");
 }
+// ===== BACKUP IMPORT =====
+
+function startImportBackup(){
+  document.getElementById("backupInput").value = "";
+  document.getElementById("backupInput").click();
+}
+
+document.getElementById("backupInput").addEventListener("change", function(e){
+  const file = e.target.files[0];
+  if(!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(evt){
+    try {
+      const data = JSON.parse(evt.target.result);
+      handleBackupImport(data);
+    } catch(err){
+      alert("Bu dosya geçerli bir JSON yedeği değil.");
+    }
+  };
+  reader.readAsText(file);
+});
+
+function handleBackupImport(data){
+  // Program yedeği mi?
+  if(data && data.name && data.days){
+    importProgramBackup(data);
+    return;
+  }
+
+  // Ölçü yedeği mi?
+  if(Array.isArray(data) && data.length && data[0].date){
+    importMeasureBackup(data);
+    return;
+  }
+
+  alert("Bu dosya tanınan bir yedek formatı değil.");
+}
+
+// ---- PROGRAM IMPORT ----
+function importProgramBackup(p){
+  let programs = getPrograms();
+
+  const existingIndex = programs.findIndex(x => x.name === p.name);
+
+  if(existingIndex !== -1){
+    const overwrite = confirm(
+      `"${p.name}" adlı bir program zaten var.\n\nOK = Üzerine yaz\nİptal = Kopya olarak ekle`
+    );
+
+    if(overwrite){
+      programs[existingIndex] = p;
+    } else {
+      let base = p.name;
+      let i = 2;
+      let newName = base + "_" + i;
+      while(programs.find(x => x.name === newName)){
+        i++;
+        newName = base + "_" + i;
+      }
+      const copy = JSON.parse(JSON.stringify(p));
+      copy.name = newName;
+      programs.push(copy);
+    }
+  } else {
+    programs.push(p);
+  }
+
+  savePrograms(programs);
+  alert("Program içe aktarıldı ✅");
+}
+
+// ---- MEASURE IMPORT ----
+function importMeasureBackup(arr){
+  let measures = getMeasures();
+
+  arr.forEach(m=>{
+    measures = measures.filter(x => x.date !== m.date);
+    measures.push(m);
+  });
+
+  saveMeasures(measures);
+  alert("Ölçü yedeği içe aktarıldı ✅");
+}
+
 
 // ===== Init =====
 render();
