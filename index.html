@@ -6,8 +6,12 @@
 <title>Spor Takip</title>
 <style>
 body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin:0; background:#f2f2f7; }
-header { background:#111; color:white; padding:12px 16px; font-size:20px; text-align:center; position:relative; }
-header .home-btn { position:absolute; right:12px; top:8px; font-size:22px; background:none; border:none; color:white; }
+header { background:#111; color:white; padding:16px; font-size:20px; text-align:center; position:relative; }
+.home-btn {
+  position:absolute; right:12px; top:12px;
+  background:#333; color:white; border:none;
+  border-radius:8px; padding:6px 10px; font-size:18px;
+}
 .container { padding:16px; }
 .card { background:white; border-radius:12px; padding:16px; margin-bottom:12px; }
 button { font-size:17px; padding:14px; width:100%; border:none; border-radius:10px; background:black; color:white; margin-bottom:10px; }
@@ -24,27 +28,26 @@ button { font-size:17px; padding:14px; width:100%; border:none; border-radius:10
 input, select { padding:10px; font-size:16px; width:100%; margin-bottom:8px; }
 .small { color:#666; font-size:14px; }
 .grid { display:grid; grid-template-columns: 1fr 1fr; gap:8px; }
-canvas { width:100%; height:260px; border:1px solid #eee; border-radius:8px; }
 </style>
 </head>
 <body>
 
-<header id="header">
+<header>
   🏋️ Spor Takip
-  <button id="homeBtn" class="home-btn" onclick="goHome()">🏠</button>
+  <button id="homeBtn" class="home-btn" onclick="goHome()" style="display:none">🏠</button>
 </header>
 
 <div class="container" id="app"></div>
 
 <input type="file" id="fileInput" accept=".csv" style="display:none" />
-<input type="file" id="backupInput" accept=".json" style="display:none" />
+<input type="file" id="importInput" accept=".json" style="display:none" />
 
 <script>
-var BOM = "\uFEFF";
+const BOM = "\uFEFF";
 
-var state = {
+let state = {
   screen: "home",
-  selectedProgram: null
+  selectedProgram: null,
 };
 
 // ===== Storage =====
@@ -58,20 +61,14 @@ function goHome(){ state.screen="home"; render(); }
 function goPrograms(){ state.screen="programs"; render(); }
 function goMeasures(){ state.screen="measures"; render(); }
 function goMeasureExport(){ state.screen="measureExport"; render(); }
-function goMeasureCharts(){ state.screen="measureCharts"; render(); }
-function goBackupImport(){ state.screen="backupImport"; render(); }
+function goImportBackup(){ state.screen="importBackup"; render(); }
 
 // ===== Render =====
 function render(){
-  var app = document.getElementById("app");
-  var homeBtn = document.getElementById("homeBtn");
+  const app = document.getElementById("app");
+  const homeBtn = document.getElementById("homeBtn");
 
-  // Ana sayfadaysak 🏠 gizle
-  if(state.screen === "home"){
-    homeBtn.style.display = "none";
-  } else {
-    homeBtn.style.display = "block";
-  }
+  homeBtn.style.display = (state.screen === "home") ? "none" : "block";
 
   app.innerHTML = "";
 
@@ -80,26 +77,26 @@ function render(){
       <div class="card"><button onclick="goPrograms()">📋 Program Seç</button></div>
       <div class="card"><button onclick="goMeasures()">⚖️ Ölçü Takibi</button></div>
       <div class="card"><button onclick="importProgram()">➕ Yeni Program Ekle (CSV)</button></div>
-      <div class="card"><button onclick="goBackupImport()">📥 Yedek İçe Aktar</button></div>
+      <div class="card"><button onclick="goImportBackup()">📥 Yedek İçe Aktar</button></div>
     `;
   }
 
-  if(state.screen==="backupImport"){
+  if(state.screen==="importBackup"){
     app.innerHTML = `
       <div class="card">
         <h3>📥 Yedek İçe Aktar</h3>
-        <div class="small">Program JSON veya Ölçü JSON dosyasını seçebilirsin.</div>
-        <button onclick="selectBackup()">📂 Dosya Seç</button>
-        <div class="small">⚠️ Mevcut verilerin üstüne yazabilir veya ekleyebilir.</div>
+        <button onclick="startImport()">📂 JSON Yedek Seç</button>
+        <div class="small">
+          Program veya Ölçü yedeği seçebilirsin.
+        </div>
       </div>
-      <button onclick="goHome()">⬅️ Geri</button>
     `;
   }
 
   if(state.screen==="programs"){
-    var programs = getPrograms();
-    var html = `<div class="card"><h3>📋 Programlar</h3>`;
-    programs.forEach(function(p,i){
+    const programs = getPrograms();
+    let html = `<div class="card"><h3>📋 Programlar</h3>`;
+    programs.forEach((p,i)=>{
       html += `
         <div class="list-item">
           <div class="list-main" onclick="openProgram(${i})">${p.name}</div>
@@ -109,58 +106,15 @@ function render(){
         </div>
       `;
     });
-    html += `</div><button onclick="goHome()">⬅️ Geri</button>`;
+    html += `</div>`;
     app.innerHTML = html;
   }
 
-  if(state.screen==="programDetail"){
-    var p = state.selectedProgram;
-    var html2 = `<div class="card"><h3>${p.name}</h3>`;
-    p.days.forEach(function(d,i){
-      html2 += `
-        <div class="list-item" onclick="openDay(${i})">
-          <div class="list-main">
-            ${d.name} - ${d.records ? "<span class='done'>Tamamlandı</span>" : "<span class='todo'>Yapılmadı</span>"}
-          </div>
-        </div>
-      `;
-    });
-    html2 += `</div><button onclick="goPrograms()">⬅️ Geri</button>`;
-    app.innerHTML = html2;
-  }
-
-  if(state.screen==="workout"){
-    var programs2 = getPrograms();
-    var day = programs2[state.programIndex].days[state.selectedDayIndex];
-    var html3 = `<div class="card"><h3>${day.name}</h3>`;
-
-    day.exercises.forEach(function(ex,ei){
-      html3 += `<div class="card">
-        <b>${ex.name}</b>
-        <div class="small">Hedef: ${ex.sets} x ${ex.reps}</div>`;
-      for(var s=0;s<ex.sets;s++){
-        var old = (day.records && day.records[ex.name] && day.records[ex.name][s]) || {};
-        html3 += `
-          <div class="set-row">
-            <input placeholder="Set ${s+1} KG" id="kg-${ei}-${s}" value="${old.kg||""}">
-            <input placeholder="Tekrar" id="rep-${ei}-${s}" value="${old.rep||""}">
-          </div>
-        `;
-      }
-      html3 += `</div>`;
-    });
-
-    html3 += `<button onclick="saveDay()">💾 Günü Kaydet</button>
-             <button onclick="renderProgramDetail()">⬅️ Geri</button>`;
-    app.innerHTML = html3;
-  }
-
   if(state.screen==="measures"){
-    var today = new Date().toISOString().slice(0,10);
-    var measures = getMeasures().slice().sort(function(a,b){ return a.date.localeCompare(b.date); });
+    const today = new Date().toISOString().slice(0,10);
+    let measures = getMeasures().slice().sort((a,b)=> a.date.localeCompare(b.date));
 
-    var list = measures.map(function(m){
-      return `
+    let list = measures.map(m=>`
       <div class="list-item">
         <div class="list-main">
           <b>${m.date}</b>
@@ -170,8 +124,8 @@ function render(){
         </div>
         <button class="icon-btn" onclick="editMeasure('${m.date}')">✏️</button>
         <button class="icon-btn delete" onclick="deleteMeasure('${m.date}')">🗑️</button>
-      </div>`;
-    }).join("");
+      </div>
+    `).join("");
 
     app.innerHTML = `
       <div class="card">
@@ -187,40 +141,13 @@ function render(){
         </div>
         <button onclick="saveMeasure()">💾 Kaydet / Güncelle</button>
         <button onclick="goMeasureExport()">📤 Ölçüleri Export</button>
-        <button onclick="goMeasureCharts()">📈 Grafikleri Gör</button>
       </div>
 
       <div class="card">
         <h3>📜 Geçmiş Ölçüler</h3>
         ${list || "<div class='small'>Henüz kayıt yok</div>"}
       </div>
-
-      <button onclick="goHome()">⬅️ Geri</button>
     `;
-  }
-
-  if(state.screen==="measureCharts"){
-    app.innerHTML = `
-      <div class="card">
-        <h3>📈 Kilo Grafiği</h3>
-        <canvas id="weightChart" width="400" height="260"></canvas>
-      </div>
-
-      <div class="card">
-        <h3>📈 Ölçü Grafiği</h3>
-        <select id="measureSelect" onchange="drawMeasureCharts()">
-          <option value="waist">Bel</option>
-          <option value="chest">Göğüs</option>
-          <option value="arm">Kol</option>
-          <option value="shoulder">Omuz</option>
-          <option value="hip">Kalça</option>
-        </select>
-        <canvas id="measureChart" width="400" height="260"></canvas>
-      </div>
-
-      <button onclick="goMeasures()">⬅️ Geri</button>
-    `;
-    drawMeasureCharts();
   }
 
   if(state.screen==="measureExport"){
@@ -230,78 +157,166 @@ function render(){
         <button onclick="exportMeasuresJSON()">📦 JSON (Yedek)</button>
         <button onclick="exportMeasuresCSV()">📊 CSV (Excel/GPT)</button>
       </div>
-      <button onclick="goMeasures()">⬅️ Geri</button>
-    `;
-  }
-
-  if(state.screen==="programExport"){
-    var i = state.exportProgramIndex;
-    var programs3 = getPrograms();
-    var p2 = programs3[i];
-    app.innerHTML = `
-      <div class="card">
-        <h3>📤 ${p2.name}</h3>
-        <button onclick="exportProgramJSON(${i})">📦 Program JSON (Yedek)</button>
-        <button onclick="exportProgramCSV(${i})">📊 Program CSV (Antrenman Kayıtları)</button>
-      </div>
-      <button onclick="goPrograms()">⬅️ Geri</button>
     `;
   }
 }
 
-// ===== Backup Import (FIXED) =====
-function selectBackup(){
-  document.getElementById("backupInput").click();
+// ===== Import Backup =====
+function startImport(){
+  document.getElementById("importInput").click();
 }
 
-document.getElementById("backupInput").addEventListener("change", function(e){
-  var file = e.target.files[0];
-  if(!file) return;
-  var reader = new FileReader();
+document.getElementById("importInput").addEventListener("change", function(e){
+  const file = e.target.files[0];
+  const reader = new FileReader();
   reader.onload = function(evt){
-    try{
-      var data = JSON.parse(evt.target.result);
-
-      // TEK PROGRAM
-      if(data && data.name && Array.isArray(data.days)){
-        if(confirm("Bu bir PROGRAM yedeği. Mevcut programlara EKLENSİN mi?")){
-          var programs = getPrograms();
-          programs.push(data);
-          savePrograms(programs);
-          alert("Program içe aktarıldı ✅");
-        }
-        return;
-      }
-
-      // PROGRAM LİSTESİ
-      if(Array.isArray(data) && data.length && data[0].name && data[0].days){
-        if(confirm("Bu işlem MEVCUT TÜM PROGRAMLARIN üstüne yazacak. Emin misin?")){
-          savePrograms(data);
-          alert("Programlar yüklendi ✅");
-        }
-        return;
-      }
-
-      // ÖLÇÜ LİSTESİ
-      if(Array.isArray(data) && (data.length===0 || data[0].date)){
-        if(confirm("Bu işlem MEVCUT TÜM ÖLÇÜLERİN üstüne yazacak. Emin misin?")){
-          saveMeasures(data);
-          alert("Ölçüler yüklendi ✅");
-        }
-        return;
-      }
-
-      alert("Bu dosya tanınan bir yedek formatı değil.");
-
-    }catch(err){
-      alert("Geçersiz JSON dosyası.");
+    try {
+      const data = JSON.parse(evt.target.result);
+      handleImportData(data);
+    } catch(err){
+      alert("Bu dosya geçerli bir yedek değil.");
     }
   };
   reader.readAsText(file);
 });
 
-// ===== Charts, Program, Measure, Export fonksiyonları =====
-// (Bunlar önceki sürümle aynı – DEĞİŞTİRİLMEDİ)
+function handleImportData(data){
+  // Program yedeği mi?
+  if(data && data.days && data.name){
+    importProgramBackup(data);
+    return;
+  }
+  // Ölçü yedeği mi?
+  if(Array.isArray(data) && data.length && data[0].date){
+    importMeasureBackup(data);
+    return;
+  }
+  alert("Bu dosya tanınan bir yedek formatı değil.");
+}
+
+function importProgramBackup(p){
+  let programs = getPrograms();
+  const existing = programs.find(x=>x.name===p.name);
+  if(existing){
+    const choice = confirm("Bu isimde bir program var. Üzerine yazmak için OK, kopya oluşturmak için İptal.");
+    if(choice){
+      programs = programs.map(x=> x.name===p.name ? p : x);
+    } else {
+      let base = p.name;
+      let i = 2;
+      let newName = base + "_" + i;
+      while(programs.find(x=>x.name===newName)){ i++; newName = base + "_" + i; }
+      p.name = newName;
+      programs.push(p);
+    }
+  } else {
+    programs.push(p);
+  }
+  savePrograms(programs);
+  alert("Program içe aktarıldı ✅");
+}
+
+function importMeasureBackup(arr){
+  let measures = getMeasures();
+  arr.forEach(m=>{
+    measures = measures.filter(x=>x.date!==m.date);
+    measures.push(m);
+  });
+  saveMeasures(measures);
+  alert("Ölçüler içe aktarıldı ✅");
+}
+
+// ===== CSV Import (mevcut sistem) =====
+function importProgram(){ document.getElementById("fileInput").click(); }
+document.getElementById("fileInput").addEventListener("change", e=>{
+  const file = e.target.files[0];
+  const reader = new FileReader();
+  reader.onload = evt => parseCSV(evt.target.result);
+  reader.readAsText(file);
+});
+
+function parseCSV(text){
+  const lines = text.split("\n").map(l=>l.trim()).filter(l=>l);
+  const rows = lines.slice(1).map(l=>l.split(","));
+  const programName = rows[0][0];
+  let program = { name: programName, days: [] };
+  let dayMap = {};
+  rows.forEach(r=>{
+    const week=r[1], day=r[2], exercise=r[3];
+    const sets=parseInt(r[4]), reps=parseInt(r[5]);
+    const key = `Hafta ${week} Gün ${day}`;
+    if(!dayMap[key]){ dayMap[key]={ name:key, exercises:[] }; program.days.push(dayMap[key]); }
+    dayMap[key].exercises.push({ name:exercise, sets, reps });
+  });
+  const programs = getPrograms();
+  programs.push(program);
+  savePrograms(programs);
+  alert("Program eklendi ✅");
+}
+
+// ===== Measures =====
+function saveMeasure(){
+  const m = {
+    date: document.getElementById("m-date").value,
+    weight: document.getElementById("m-weight").value,
+    waist: document.getElementById("m-waist").value,
+    chest: document.getElementById("m-chest").value,
+    arm: document.getElementById("m-arm").value,
+    shoulder: document.getElementById("m-shoulder").value,
+    hip: document.getElementById("m-hip").value,
+  };
+  let measures = getMeasures();
+  measures = measures.filter(x=>x.date!==m.date);
+  measures.push(m);
+  saveMeasures(measures);
+  alert("Ölçü kaydedildi ✅");
+  render();
+}
+
+function editMeasure(date){
+  const m = getMeasures().find(x=>x.date===date);
+  if(!m) return;
+  document.getElementById("m-date").value = m.date;
+  document.getElementById("m-weight").value = m.weight||"";
+  document.getElementById("m-waist").value = m.waist||"";
+  document.getElementById("m-chest").value = m.chest||"";
+  document.getElementById("m-arm").value = m.arm||"";
+  document.getElementById("m-shoulder").value = m.shoulder||"";
+  document.getElementById("m-hip").value = m.hip||"";
+}
+
+function deleteMeasure(date){
+  if(!confirm("Bu kaydı silmek istiyor musun?")) return;
+  let measures = getMeasures().filter(x=>x.date!==date);
+  saveMeasures(measures);
+  render();
+}
+
+// ===== Export =====
+function downloadFile(filename, content, type){
+  const blob = new Blob([content], {type});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function exportMeasuresJSON(){
+  const data = JSON.stringify(getMeasures(), null, 2);
+  downloadFile("olcu_verilerim.json", data, "application/json");
+}
+
+function exportMeasuresCSV(){
+  const m = getMeasures().sort((a,b)=> a.date.localeCompare(b.date));
+  let rows = [];
+  rows.push(["Tarih","Kilo","Bel","Göğüs","Kol","Omuz","Kalça"].join(","));
+  m.forEach(x=>{
+    rows.push([x.date, x.weight||"", x.waist||"", x.chest||"", x.arm||"", x.shoulder||"", x.hip||""].join(","));
+  });
+  const csv = BOM + rows.join("\n");
+  downloadFile("olcu_verilerim.csv", csv, "text/csv;charset=utf-8;");
+}
 
 // ===== Init =====
 render();
