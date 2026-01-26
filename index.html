@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spor Takip</title>
+<style>
+body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin:0; background:#f2f2f7; }
+header { background:#111; color:white; padding:16px; font-size:20px; text-align:center; }
+.container { padding:16px; }
+.card { background:white; border-radius:12px; padding:16px; margin-bottom:12px; }
+button { font-size:17px; padding:14px; width:100%; border:none; border-radius:10px; background:black; color:white; margin-bottom:10px; }
+.list-item { padding:12px; border-bottom:1px solid #ddd; display:flex; align-items:center; gap:10px; }
+.list-item:last-child { border-bottom:none; }
+.list-main { flex:1; }
+.icon-btn { background:#eee; border:none; border-radius:8px; padding:8px 10px; font-size:16px; }
+.icon-btn.delete { background:#ffdddd; }
+.icon-btn.export { background:#ddeaff; }
+.done { color:green; font-weight:600; }
+.todo { color:#999; }
+.set-row { display:flex; gap:8px; }
+.set-row input { flex:1; padding:10px; font-size:16px; }
+input, select { padding:10px; font-size:16px; width:100%; margin-bottom:8px; }
+.small { color:#666; font-size:14px; }
+.grid { display:grid; grid-template-columns: 1fr 1fr; gap:8px; }
+canvas { width:100%; height:260px; border:1px solid #eee; border-radius:8px; }
+</style>
+</head>
+<body>
+
+<header>🏋️ Spor Takip</header>
+<div class="container" id="app"></div>
+
+<input type="file" id="fileInput" accept=".csv" style="display:none" />
+
+<script>
+const BOM = "\uFEFF";
+
+let state = {
+  screen: "home",
+  selectedProgram: null,
+};
+
+// ===== Storage =====
+function getPrograms() { return JSON.parse(localStorage.getItem("programs") || "[]"); }
+function savePrograms(p) { localStorage.setItem("programs", JSON.stringify(p)); }
+function getMeasures() { return JSON.parse(localStorage.getItem("measures") || "[]"); }
+function saveMeasures(m) { localStorage.setItem("measures", JSON.stringify(m)); }
+
+// ===== Navigation =====
+function goHome(){ state.screen="home"; render(); }
+function goPrograms(){ state.screen="programs"; render(); }
+function goMeasures(){ state.screen="measures"; render(); }
+function goMeasureExport(){ state.screen="measureExport"; render(); }
+function goMeasureCharts(){ state.screen="measureCharts"; render(); }
+
+// ===== Render =====
+function render(){
+  const app = document.getElementById("app");
+  app.innerHTML = "";
+
+  if(state.screen==="home"){
+    app.innerHTML = `
+      <div class="card"><button onclick="goPrograms()">📋 Program Seç</button></div>
+      <div class="card"><button onclick="importProgram()">➕ Yeni Program Ekle (CSV)</button></div>
+      <div class="card"><button onclick="goMeasures()">⚖️ Ölçü Takibi</button></div>
+    `;
+  }
+
+  if(state.screen==="programs"){
+    const programs = getPrograms();
+    let html = `<div class="card"><h3>📋 Programlar</h3>`;
+    programs.forEach((p,i)=>{
+      html += `
+        <div class="list-item">
+          <div class="list-main" onclick="openProgram(${i})">${p.name}</div>
+          <button class="icon-btn export" onclick="exportProgramMenu(${i})">📤</button>
+          <button class="icon-btn" onclick="renameProgram(${i})">✏️</button>
+          <button class="icon-btn delete" onclick="deleteProgram(${i})">🗑️</button>
+        </div>
+      `;
+    });
+    html += `</div><button onclick="goHome()">⬅️ Geri</button>`;
+    app.innerHTML = html;
+  }
+
+  if(state.screen==="programDetail"){
+    const p = state.selectedProgram;
+    let html = `<div class="card"><h3>${p.name}</h3>`;
+    p.days.forEach((d,i)=>{
+      html += `
+        <div class="list-item" onclick="openDay(${i})">
+          <div class="list-main">
+            ${d.name} - ${d.records ? "<span class='done'>Tamamlandı</span>" : "<span class='todo'>Yapılmadı</span>"}
+          </div>
+        </div>
+      `;
+    });
+    html += `</div><button onclick="goPrograms()">⬅️ Geri</button>`;
+    app.innerHTML = html;
+  }
+
+  if(state.screen==="workout"){
+    const programs = getPrograms();
+    const day = programs[state.programIndex].days[state.selectedDayIndex];
+    let html = `<div class="card"><h3>${day.name}</h3>`;
+
+    day.exercises.forEach((ex,ei)=>{
+      html += `<div class="card">
+        <b>${ex.name}</b>
+        <div class="small">Hedef: ${ex.sets} x ${ex.reps}</div>`;
+      for(let s=0;s<ex.sets;s++){
+        const old = day.records?.[ex.name]?.[s] || {};
+        html += `
+          <div class="set-row">
+            <input placeholder="Set ${s+1} KG" id="kg-${ei}-${s}" value="${old.kg||""}">
+            <input placeholder="Tekrar" id="rep-${ei}-${s}" value="${old.rep||""}">
+          </div>
+        `;
+      }
+      html += `</div>`;
+    });
+
+    html += `<button onclick="saveDay()">💾 Günü Kaydet</button>
+             <button onclick="renderProgramDetail()">⬅️ Geri</button>`;
+    app.innerHTML = html;
+  }
+
+  if(state.screen==="measures"){
+    const today = new Date().toISOString().slice(0,10);
+    let measures = getMeasures().slice().sort((a,b)=> a.date.localeCompare(b.date));
+
+    let list = measures.map(m=>`
+      <div class="list-item">
+        <div class="list-main">
+          <b>${m.date}</b>
+          <div class="small">
+            Kilo:${m.weight||""} | Bel:${m.waist||""} | Göğüs:${m.chest||""} | Kol:${m.arm||""} | Omuz:${m.shoulder||""} | Kalça:${m.hip||""}
+          </div>
+        </div>
+        <button class="icon-btn" onclick="editMeasure('${m.date}')">✏️</button>
+        <button class="icon-btn delete" onclick="deleteMeasure('${m.date}')">🗑️</button>
+      </div>
+    `).join("");
+
+    app.innerHTML = `
+      <div class="card">
+        <h3>⚖️ Ölçü Girişi</h3>
+        <input type="date" id="m-date" value="${today}">
+        <div class="grid">
+          <input id="m-weight" placeholder="Kilo">
+          <input id="m-waist" placeholder="Bel">
+          <input id="m-chest" placeholder="Göğüs">
+          <input id="m-arm" placeholder="Kol">
+          <input id="m-shoulder" placeholder="Omuz">
+          <input id="m-hip" placeholder="Kalça">
+        </div>
+        <button onclick="saveMeasure()">💾 Kaydet / Güncelle</button>
+        <button onclick="goMeasureExport()">📤 Ölçüleri Export</button>
+        <button onclick="goMeasureCharts()">📈 Grafikleri Gör</button>
+      </div>
+
+      <div class="card">
+        <h3>📜 Geçmiş Ölçüler</h3>
+        ${list || "<div class='small'>Henüz kayıt yok</div>"}
+      </div>
+
+      <button onclick="goHome()">⬅️ Geri</button>
+    `;
+  }
+
+  if(state.screen==="measureCharts"){
+    app.innerHTML = `
+      <div class="card">
+        <h3>📈 Kilo Grafiği</h3>
+        <canvas id="weightChart" width="400" height="260"></canvas>
+      </div>
+
+      <div class="card">
+        <h3>📈 Ölçü Grafiği</h3>
+        <select id="measureSelect" onchange="drawMeasureCharts()">
+          <option value="waist">Bel</option>
+          <option value="chest">Göğüs</option>
+          <option value="arm">Kol</option>
+          <option value="shoulder">Omuz</option>
+          <option value="hip">Kalça</option>
+        </select>
+        <canvas id="measureChart" width="400" height="260"></canvas>
+      </div>
+
+      <button onclick="goMeasures()">⬅️ Geri</button>
+    `;
+    drawMeasureCharts();
+  }
+
+  if(state.screen==="measureExport"){
+    app.innerHTML = `
+      <div class="card">
+        <h3>📤 Ölçü Export</h3>
+        <button onclick="exportMeasuresJSON()">📦 JSON (Yedek)</button>
+        <button onclick="exportMeasuresCSV()">📊 CSV (Excel/GPT)</button>
+      </div>
+      <button onclick="goMeasures()">⬅️ Geri</button>
+    `;
+  }
+
+  if(state.screen==="programExport"){
+    const i = state.exportProgramIndex;
+    const programs = getPrograms();
+    const p = programs[i];
+    app.innerHTML = `
+      <div class="card">
+        <h3>📤 ${p.name}</h3>
+        <button onclick="exportProgramJSON(${i})">📦 Program JSON (Yedek)</button>
+        <button onclick="exportProgramCSV(${i})">📊 Program CSV (Antrenman Kayıtları)</button>
+      </div>
+      <button onclick="goPrograms()">⬅️ Geri</button>
+    `;
+  }
+}
+
+// ===== Charts =====
+function drawMeasureCharts(){
+  let measures = getMeasures().slice().sort((a,b)=> a.date.localeCompare(b.date));
+
+  const weightData = measures.filter(m=>m.weight).map(m=>({x:m.date, v:parseFloat(m.weight)}));
+  drawLineChart("weightChart", weightData, "#007aff");
+
+  const key = document.getElementById("measureSelect").value;
+  const colorMap = { waist:"#ff9500", chest:"#34c759", arm:"#af52de", shoulder:"#ff3b30", hip:"#5ac8fa" };
+  const mData = measures.filter(m=>m[key]).map(m=>({x:m.date, v:parseFloat(m[key])}));
+  drawLineChart("measureChart", mData, colorMap[key] || "#000");
+}
+
+function drawLineChart(canvasId, data, color){
+  const c = document.getElementById(canvasId);
+  if(!c) return;
+  const ctx = c.getContext("2d");
+  ctx.clearRect(0,0,c.width,c.height);
+
+  if(data.length < 1){
+    ctx.fillStyle="#999";
+    ctx.fillText("Yeterli veri yok", 20, 40);
+    return;
+  }
+
+  const pad = 40;
+  const w = c.width - pad*2;
+  const h = c.height - pad*2;
+
+  const minY = Math.min(...data.map(d=>d.v));
+  const maxY = Math.max(...data.map(d=>d.v));
+  const range = (maxY - minY) || 1;
+
+  // axes
+  ctx.strokeStyle="#ccc";
+  ctx.beginPath();
+  ctx.moveTo(pad,pad);
+  ctx.lineTo(pad,pad+h);
+  ctx.lineTo(pad+w,pad+h);
+  ctx.stroke();
+
+  // labels
+  ctx.fillStyle="#666";
+  ctx.font="12px sans-serif";
+  ctx.fillText(maxY.toFixed(1), 5, pad+5);
+  ctx.fillText(minY.toFixed(1), 5, pad+h);
+
+  // line
+  ctx.strokeStyle=color;
+  ctx.lineWidth=2;
+  ctx.beginPath();
+
+  data.forEach((d,i)=>{
+    const x = pad + (i/(data.length-1||1))*w;
+    const y = pad + h - ((d.v - minY)/range)*h;
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+
+    ctx.fillStyle=color;
+    ctx.beginPath();
+    ctx.arc(x,y,3,0,Math.PI*2);
+    ctx.fill();
+  });
+
+  ctx.stroke();
+}
+
+// ===== Program Flow, Import, Export, Measure CRUD =====
+// (Bunlar stabil sürümle birebir aynıdır)
+
+function openProgram(i){
+  const programs = getPrograms();
+  state.selectedProgram = programs[i];
+  state.programIndex = i;
+  state.screen = "programDetail";
+  render();
+}
+function renderProgramDetail(){ state.screen="programDetail"; render(); }
+function openDay(i){ state.selectedDayIndex=i; state.screen="workout"; render(); }
+
+function saveDay(){
+  const programs = getPrograms();
+  const day = programs[state.programIndex].days[state.selectedDayIndex];
+  let records = {};
+  day.exercises.forEach((ex,ei)=>{
+    records[ex.name]=[];
+    for(let s=0;s<ex.sets;s++){
+      const kg = document.getElementById(`kg-${ei}-${s}`).value;
+      const rep = document.getElementById(`rep-${ei}-${s}`).value;
+      records[ex.name].push({kg,rep});
+    }
+  });
+  day.records = records;
+  savePrograms(programs);
+  alert("Gün kaydedildi 💪");
+  renderProgramDetail();
+}
+
+function importProgram(){ document.getElementById("fileInput").click(); }
+document.getElementById("fileInput").addEventListener("change", e=>{
+  const file = e.target.files[0];
+  const reader = new FileReader();
+  reader.onload = evt => parseCSV(evt.target.result);
+  reader.readAsText(file);
+});
+
+function parseCSV(text){
+  const lines = text.split("\n").map(l=>l.trim()).filter(l=>l);
+  const rows = lines.slice(1).map(l=>l.split(","));
+  const programName = rows[0][0];
+  let program = { name: programName, days: [] };
+  let dayMap = {};
+  rows.forEach(r=>{
+    const week=r[1], day=r[2], exercise=r[3];
+    const sets=parseInt(r[4]), reps=parseInt(r[5]);
+    const key = `Hafta ${week} Gün ${day}`;
+    if(!dayMap[key]){ dayMap[key]={ name:key, exercises:[] }; program.days.push(dayMap[key]); }
+    dayMap[key].exercises.push({ name:exercise, sets, reps });
+  });
+  const programs = getPrograms();
+  programs.push(program);
+  savePrograms(programs);
+  alert("Program eklendi ✅");
+}
+
+function deleteProgram(i){
+  if(!confirm("Bu programı silmek istiyor musun?")) return;
+  const programs = getPrograms();
+  programs.splice(i,1); savePrograms(programs); render();
+}
+function renameProgram(i){
+  const programs = getPrograms();
+  const newName = prompt("Yeni program adını gir:", programs[i].name);
+  if(!newName) return;
+  programs[i].name = newName; savePrograms(programs); render();
+}
+
+function downloadFile(filename, content, type){
+  const blob = new Blob([content], {type});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function exportProgramMenu(i){ state.exportProgramIndex=i; state.screen="programExport"; render(); }
+
+function exportProgramJSON(i){
+  const programs = getPrograms();
+  const data = JSON.stringify(programs[i], null, 2);
+  downloadFile(`program_${programs[i].name}.json`, data, "application/json");
+}
+
+function exportProgramCSV(i){
+  const programs = getPrograms();
+  const p = programs[i];
+  let rows = [];
+  rows.push(["Program","Gün","Hareket","SetNo","KG","Tekrar"].join(","));
+  p.days.forEach(d=>{
+    if(d.records){
+      Object.keys(d.records).forEach(exName=>{
+        d.records[exName].forEach((set,idx)=>{
+          rows.push([
+            `"${p.name}"`, `"${d.name}"`, `"${exName}"`, idx+1, set.kg||"", set.rep||""
+          ].join(","));
+        });
+      });
+    }
+  });
+  const csv = BOM + rows.join("\n");
+  downloadFile(`program_${p.name}_antrenman.csv`, csv, "text/csv;charset=utf-8;");
+}
+
+function saveMeasure(){
+  const m = {
+    date: document.getElementById("m-date").value,
+    weight: document.getElementById("m-weight").value,
+    waist: document.getElementById("m-waist").value,
+    chest: document.getElementById("m-chest").value,
+    arm: document.getElementById("m-arm").value,
+    shoulder: document.getElementById("m-shoulder").value,
+    hip: document.getElementById("m-hip").value,
+  };
+  let measures = getMeasures();
+  measures = measures.filter(x=>x.date!==m.date);
+  measures.push(m);
+  saveMeasures(measures);
+  alert("Ölçü kaydedildi ✅");
+  render();
+}
+
+function editMeasure(date){
+  const m = getMeasures().find(x=>x.date===date);
+  if(!m) return;
+  document.getElementById("m-date").value = m.date;
+  document.getElementById("m-weight").value = m.weight||"";
+  document.getElementById("m-waist").value = m.waist||"";
+  document.getElementById("m-chest").value = m.chest||"";
+  document.getElementById("m-arm").value = m.arm||"";
+  document.getElementById("m-shoulder").value = m.shoulder||"";
+  document.getElementById("m-hip").value = m.hip||"";
+}
+
+function deleteMeasure(date){
+  if(!confirm("Bu kaydı silmek istiyor musun?")) return;
+  let measures = getMeasures().filter(x=>x.date!==date);
+  saveMeasures(measures);
+  render();
+}
+
+function exportMeasuresJSON(){
+  const data = JSON.stringify(getMeasures(), null, 2);
+  downloadFile("olcu_verilerim.json", data, "application/json");
+}
+
+function exportMeasuresCSV(){
+  const m = getMeasures().sort((a,b)=> a.date.localeCompare(b.date));
+  let rows = [];
+  rows.push(["Tarih","Kilo","Bel","Göğüs","Kol","Omuz","Kalça"].join(","));
+  m.forEach(x=>{
+    rows.push([x.date, x.weight||"", x.waist||"", x.chest||"", x.arm||"", x.shoulder||"", x.hip||""].join(","));
+  });
+  const csv = BOM + rows.join("\n");
+  downloadFile("olcu_verilerim.csv", csv, "text/csv;charset=utf-8;");
+}
+
+// ===== Init =====
+render();
+</script>
+
+</body>
+</html>
