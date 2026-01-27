@@ -148,6 +148,15 @@ function render(){
       }
       html += `</div>`;
     });
+// --- Manuel hareket ekleme formu ---
+    html += `
+      <div class="card">
+        <h4>➕ Hareket Ekle</h4>
+        <input id="new-ex-name" placeholder="Hareket adı">
+        <input id="new-ex-sets" type="number" min="1" placeholder="Set sayısı">
+        <button onclick="addExerciseToDay()">➕ Ekle</button>
+      </div>
+    `;
 
     html += `<button onclick="saveDay()">💾 Günü Kaydet</button>
              <button onclick="renderProgramDetail()">⬅️ Geri</button>`;
@@ -342,6 +351,42 @@ function saveDay(){
   savePrograms(programs);
   alert("Gün kaydedildi 💪");
   renderProgramDetail();
+}
+function addExerciseToDay(){
+  const name = document.getElementById("new-ex-name").value.trim();
+  const sets = parseInt(document.getElementById("new-ex-sets").value);
+
+  if(!name){
+    alert("Hareket adı gir.");
+    return;
+  }
+  if(!sets || sets < 1){
+    alert("Geçerli set sayısı gir.");
+    return;
+  }
+
+  const programs = getPrograms();
+  const day = programs[state.programIndex].days[state.selectedDayIndex];
+
+  // Aynı isimde hareket var mı?
+  if(day.exercises.find(x => x.name.toLowerCase() === name.toLowerCase())){
+    if(!confirm("Bu isimde bir hareket zaten var. Yine de eklemek istiyor musun?")){
+      return;
+    }
+  }
+
+  // Yeni hareketi ekle
+  day.exercises.push({
+    name: name,
+    sets: sets,
+    reps: ""   // hedef tekrar boş, çünkü manuel
+  });
+
+  savePrograms(programs);
+  alert("Hareket eklendi ✅");
+
+  // Ekranı yenile
+  render();
 }
 
 function importProgram(){ document.getElementById("fileInput").click(); }
