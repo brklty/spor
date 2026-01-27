@@ -134,9 +134,13 @@ function render(){
     let html = `<div class="card"><h3>${day.name}</h3>`;
 
     day.exercises.forEach((ex,ei)=>{
+      const comment = day.comments?.[ex.name] || "";
       html += `<div class="card">
         <b>${ex.name}</b>
-        <div class="small">Hedef: ${ex.sets} x ${ex.reps}</div>`;
+        <div class="small">Hedef: ${ex.sets} x ${ex.reps}</div>
+        <textarea id="comment-${ei}" placeholder="📝 Not / Yorum (opsiyonel)" style="width:100%;margin-top:8px;">${comment}</textarea>
+      `;
+
       for(let s=0;s<ex.sets;s++){
         const old = day.records?.[ex.name]?.[s] || {};
         html += `
@@ -339,15 +343,21 @@ function saveDay(){
   const programs = getPrograms();
   const day = programs[state.programIndex].days[state.selectedDayIndex];
   let records = {};
+  let comments = {};
   day.exercises.forEach((ex,ei)=>{
     records[ex.name]=[];
     for(let s=0;s<ex.sets;s++){
       const kg = document.getElementById(`kg-${ei}-${s}`).value;
       const rep = document.getElementById(`rep-${ei}-${s}`).value;
       records[ex.name].push({kg,rep});
+      const c = document.getElementById(`comment-${ei}`).value;
+    if(c && c.trim()){
+      comments[ex.name] = c.trim();
+    }
     }
   });
   day.records = records;
+  day.comments = comments;
   savePrograms(programs);
   alert("Gün kaydedildi 💪");
   renderProgramDetail();
