@@ -70,6 +70,8 @@ function goPrograms(){ state.screen="programs"; render(); }
 function goMeasures(){ state.screen="measures"; render(); }
 function goMeasureExport(){ state.screen="measureExport"; render(); }
 function goMeasureCharts(){ state.screen="measureCharts"; render(); }
+function goExerciseCharts(){ state.screen="exerciseCharts"; render(); }
+
 
 // ===== Render =====
 function render(){
@@ -84,14 +86,12 @@ function render(){
     app.innerHTML = `
       <div class="card"><button onclick="goPrograms()">📋 Program Seç</button></div>
       <div class="card"><button onclick="goMeasures()">⚖️ Ölçü Takibi</button></div>
+      <div class="card"><button onclick="goExerciseCharts()">📈 Gelişim Grafikleri</button></div>
       <div class="card"><button onclick="importProgram()">➕ Yeni Program Ekle (CSV)</button></div>
       <div class="card"><button onclick="startImportBackup()">📥 Yedek İçe Aktar</button></div>
 
     `;
   }
-
-  // 🔴 BURADAN SONRASI: SENİN GÖNDERDİĞİN STABİL KODUN AYNISI
-
 
   if(state.screen==="programs"){
     const programs = getPrograms();
@@ -258,6 +258,37 @@ function render(){
       <button onclick="goPrograms()">⬅️ Geri</button>
     `;
   }
+
+  if(state.screen==="exerciseCharts"){
+    const exercises = collectAllExercises();
+
+    if(exercises.length === 0){
+      app.innerHTML = `
+        <div class="card">
+          <h3>📈 Gelişim Grafikleri</h3>
+          <div class="small">Henüz hiç kayıtlı egzersiz yok.</div>
+        </div>
+        <button onclick="goHome()">⬅️ Geri</button>
+      `;
+      return;
+    }
+
+    let options = exercises.map(e=>`<option value="${e}">${e}</option>`).join("");
+
+    app.innerHTML = `
+      <div class="card">
+        <h3>📈 Gelişim Grafikleri</h3>
+        <select id="exerciseSelect" onchange="drawExerciseChart()">
+          ${options}
+        </select>
+        <canvas id="exerciseChart" width="400" height="260"></canvas>
+      </div>
+      <button onclick="goHome()">⬅️ Geri</button>
+    `;
+
+    drawExerciseChart();
+  }
+
 }
 
 // ===== Charts =====
@@ -610,6 +641,53 @@ function importMeasureBackup(arr){
 
   saveMeasures(measures);
   alert("Ölçü yedeği içe aktarıldı ✅");
+}
+
+function collectAllExercises(){
+  const programs = getPrograms();
+  const set = new Set();
+
+  programs.forEach(p=>{
+    p.days.forEach(d=>{
+      if(d.records){
+        Object.keys(d.records).forEach(exName=>{
+          set.add(exName);
+        });
+      }
+    });
+  });
+
+  return Array.from(set).sort();
+}
+
+function drawExerciseChart(){
+  const name = document.getElementById("exerciseSelect").value;
+  const programs = getPrograms();
+
+  let points = [];
+
+  programs.forEach(p=>{
+    p.days.forEach(d=>{
+      if(d.records && d.records[name]){
+        // o günkü en iyi set
+        let best = 0;
+        d.records[name].forEach(s=>{
+          const kg = parseFloat(s.kg);
+          if(!isNaN(kg)){
+            if(kg > best) best = kg;
+          }
+        });
+        if(best > 0){
+          points.push({
+            x: d.name,
+            v: best
+          });
+        }
+      }
+    });
+  });
+
+  drawLineChart("exerciseChart", points, "#ff2d55");
 }
 
 
