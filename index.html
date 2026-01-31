@@ -131,14 +131,28 @@ function render(){
   if(state.screen==="workout"){
     const programs = getPrograms();
     const day = programs[state.programIndex].days[state.selectedDayIndex];
-    let html = `<div class="card"><h3>${day.name}</h3>`;
+
+    const today = new Date().toISOString().slice(0,10);
+    const selectedDate = day.date || today;
+
+    let html = `<div class="card">
+      <h3>${day.name}</h3>
+      <div class="small">📅 Antrenman Tarihi</div>
+      <input type="date" id="workout-date" value="${selectedDate}">
+    `;
+
 
     day.exercises.forEach((ex,ei)=>{
       const comment = day.comments?.[ex.name] || "";
       html += `<div class="card">
-        <b>${ex.name}</b>
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <b>${ex.name}</b>
+          <button class="icon-btn" onclick="toggleHistory('${ex.name.replace(/'/g,"\\'")}', ${ei})">📜</button>
+        </div>
+
         <div class="small">Hedef: ${ex.sets} x ${ex.reps}</div>
         <textarea id="comment-${ei}" placeholder="📝 Not / Yorum (opsiyonel)" style="width:100%;margin-top:8px;">${comment}</textarea>
+        <div id="history-${ei}" style="display:none;margin-top:8px;"></div>
       `;
 
       for(let s=0;s<ex.sets;s++){
@@ -388,6 +402,11 @@ function saveDay(){
     }
   });
   day.records = records;
+  const d = document.getElementById("workout-date").value;
+  if(d){
+    day.date = d;
+  }
+
   day.comments = comments;
   savePrograms(programs);
   alert("Gün kaydedildi 💪");
@@ -688,6 +707,83 @@ function drawExerciseChart(){
   });
 
   drawLineChart("exerciseChart", points, "#ff2d55");
+}
+let openHistoryIndex = null;
+
+function toggleHistory(exName, ei){
+  const el = document.getElementById("history-" + ei);
+
+  if(el.style.display === "block"){
+    el.style.display = "none";
+    el.innerHTML = "";
+    openHistoryIndex = null;
+    return;
+  }
+
+  // başka açık varsa kapat
+  if(openHistoryIndex !== null){
+    const old = document.getElementById("history-" + openHistoryIndex);
+    if(old){
+      old.style.display = "none";
+      old.innerHTML = "";
+    }
+  }
+
+  const history = collectExerciseHistory(exName);
+
+  if(history.length === 0){
+    el.innerHTML = `<div class="small">Bu hareket için geçmiş kayıt yok.</div>`;
+  } else {
+    let html = `<div class="small"><b>📜 Son Kayıtlar</b></div>`;
+
+    history.slice(0,3).forEach(h=>{
+      html += `<div class="card" style="margin-top:8px;">
+        <div class="small"><b>${h.date || "Tarih yok (eski kayıt)"}</b></div>
+      `;
+
+      h.sets.forEach((s,idx)=>{
+        html += `<div class="small">#${idx+1} ${s.kg || "-"} kg x ${s.rep || "-"}</div>`;
+      });
+
+      if(h.comment){
+        html += `<div class="small">📝 ${h.comment}</div>`;
+      }
+
+      html += `</div>`;
+    });
+
+    el.innerHTML = html;
+  }
+
+  el.style.display = "block";
+  openHistoryIndex = ei;
+}
+
+// tüm programlardan o hareketin geçmişini toplar
+function collectExerciseHistory(name){
+  const programs = getPrograms();
+  let list = [];
+
+  programs.forEach(p=>{
+    p.days.forEach(d=>{
+      if(d.records && d.records[name]){
+        list.push({
+          date: d.date,
+          sets: d.records[name],
+          comment: d.comments ? d.comments[name] : ""
+        });
+      }
+    });
+  });
+
+  // tarihe göre sırala (yeni → eski)
+  list.sort((a,b)=>{
+    if(!a.date) return 1;
+    if(!b.date) return -1;
+    return b.date.localeCompare(a.date);
+  });
+
+  return list;
 }
 
 
