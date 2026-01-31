@@ -35,6 +35,24 @@ input, select { padding:10px; font-size:16px; width:100%; margin-bottom:8px; }
 .small { color:#666; font-size:14px; }
 .grid { display:grid; grid-template-columns: 1fr 1fr; gap:8px; }
 canvas { width:100%; height:260px; border:1px solid #eee; border-radius:8px; }
+.workout-footer {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #f2f2f7;
+  padding: 10px 16px calc(env(safe-area-inset-bottom) + 10px);
+  border-top: 1px solid #ddd;
+  display: flex;
+  gap: 10px;
+  z-index: 1000;
+}
+
+.workout-footer button {
+  flex: 1;
+  margin-bottom: 0;
+}
+
 </style>
 </head>
 <body>
@@ -137,8 +155,15 @@ function render(){
 
     let html = `<div class="card">
       <h3>${day.name}</h3>
-      <div class="small">📅 Antrenman Tarihi</div>
-      <input type="date" id="workout-date" value="${selectedDate}">
+      <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+      <div class="small" style="white-space:nowrap;">📅 Antreman Tarihi</div>
+      <input
+        type="date"
+        id="workout-date"
+        value="${selectedDate}"
+        style="flex:1;padding:6px 8px;font-size:15px;"
+      >
+    </div>
     `;
 
 
@@ -176,8 +201,14 @@ function render(){
       </div>
     `;
 
-    html += `<button onclick="saveDay()">💾 Günü Kaydet</button>
-             <button onclick="renderProgramDetail()">⬅️ Geri</button>`;
+    html += `
+      <div style="height:90px;"></div>
+      <div class="workout-footer">
+        <button onclick="renderProgramDetail()">⬅️ Geri</button>
+        <button onclick="saveDay()">💾 Günü Kaydet</button>
+      </div>
+`    ;
+
     app.innerHTML = html;
   }
 
