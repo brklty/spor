@@ -8,7 +8,7 @@
       "type": "image/png"
     }
   ],
-  "start_url": "/spor/index_v15.html",
+  "start_url": "/spor/index.html",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#000000"
