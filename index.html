@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.json">
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Spor Takip</title>
@@ -137,7 +140,12 @@ function render(){
       html += `
         <div class="list-item" onclick="openDay(${i})">
           <div class="list-main">
-            ${d.name} - ${d.records ? "<span class='done'>Tamamlandı</span>" : "<span class='todo'>Yapılmadı</span>"}
+            ${d.name} - ${
+              (d.records && Object.keys(d.records).length > 0)
+              ? `<span class='done'>Tamamlandı (${calculateCompletionRate(d)}%)</span>`
+              : "<span class='todo'>Yapılmadı</span>"
+            }
+
           </div>
         </div>
       `;
@@ -205,9 +213,14 @@ function render(){
       <div style="height:90px;"></div>
       <div class="workout-footer">
         <button onclick="renderProgramDetail()">⬅️ Geri</button>
-        <button onclick="saveDay()">💾 Günü Kaydet</button>
+        <button onclick="saveDay()">💾 Kaydet</button>
       </div>
 `    ;
+    html += `
+      <div style="position:sticky; bottom:0; background:white; padding:12px; border-top:1px solid #ddd;">
+        <button onclick="finishDayAndGoBack()">✅ Günü Tamamla & Geri Dön</button>
+      </div>
+    `;
 
     app.innerHTML = html;
   }
@@ -412,7 +425,17 @@ function openProgram(i){
   state.screen = "programDetail";
   render();
 }
-function renderProgramDetail(){ state.screen="programDetail"; render(); }
+function renderProgramDetail(){ 
+  state.screen="programDetail"; 
+  render(); 
+
+  // Son güncellemenin yüzdesini zorla tazele
+  const info = localStorage.getItem("lastUpdatedDay");
+  if(info){
+    localStorage.removeItem("lastUpdatedDay");
+  }
+}
+
 function openDay(i){ state.selectedDayIndex=i; state.screen="workout"; render(); }
 
 function saveDay(){
@@ -440,8 +463,21 @@ function saveDay(){
 
   day.comments = comments;
   savePrograms(programs);
-  alert("Gün kaydedildi 💪");
-  renderProgramDetail();
+  // 🔥 KRİTİK: bellekteki programı güncel veriden yenile
+  state.selectedProgram = getPrograms()[state.programIndex];
+
+  render();   // sayfayı kapatmıyoruz
+
+  // Gün listesindeki yüzdeyi güncellemek için arka planda sakla
+  localStorage.setItem("lastUpdatedDay", 
+    JSON.stringify({
+      p: state.programIndex,
+      d: state.selectedDayIndex,
+      t: Date.now()
+    })
+  );
+
+
 }
 function addExerciseToDay(){
   const name = document.getElementById("new-ex-name").value.trim();
@@ -816,6 +852,42 @@ function collectExerciseHistory(name){
 
   return list;
 }
+function finishDayAndGoBack(){
+  saveDay();               // önce kaydet
+  state.selectedProgram = getPrograms()[state.programIndex]; // 🔥 KRİTİK SATIR
+  renderProgramDetail();   // sonra listeye dön
+}
+
+function calculateCompletionRate(day){
+  let expectedReps = 0;
+  let doneReps = 0;
+
+  // 👉 BEKLENEN: toplam tekrar
+  day.exercises.forEach(ex=>{
+    const sets = ex.sets || 0;
+    const reps = parseInt(ex.reps) || 0;
+    expectedReps += sets * reps;
+  });
+
+  // 👉 GERÇEK: girilen toplam tekrar
+  if(day.records){
+    Object.values(day.records).forEach(sets=>{
+      sets.forEach(s=>{
+        const r = parseInt(s.rep);
+        if(!isNaN(r)){
+          doneReps += r;
+        }
+      });
+    });
+  }
+
+  if(expectedReps === 0) return 0;
+
+  return Math.round((doneReps / expectedReps) * 100);
+}
+
+
+
 
 
 // ===== Init =====
