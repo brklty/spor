@@ -21,7 +21,7 @@ header { background:#111; color:white; padding:16px; font-size:20px; text-align:
   padding:6px 10px;
   font-size:18px;
 }
-.container { padding:16px; }
+.container { padding:16px; padding-bottom: calc(16px + 90px + env(safe-area-inset-bottom)); }
 .card { background:white; border-radius:12px; padding:16px; margin-bottom:12px; }
 button { font-size:17px; padding:14px; width:100%; border:none; border-radius:10px; background:black; color:white; margin-bottom:10px; }
 .list-item { padding:12px; border-bottom:1px solid #ddd; display:flex; align-items:center; gap:10px; }
@@ -66,6 +66,7 @@ canvas { width:100%; height:260px; border:1px solid #eee; border-radius:8px; }
 </header>
 
 <div class="container" id="app"></div>
+<div id="fixedFooterHost"></div>
 
 <input type="file" id="fileInput" accept=".csv" style="display:none" />
 <input type="file" id="backupInput" accept=".json" style="display:none" />
@@ -137,10 +138,12 @@ function goExerciseCharts(){ state.screen="exerciseCharts"; render(); }
 function render(){
   const app = document.getElementById("app");
   const homeBtn = document.getElementById("homeBtn");
+  const footerHost = document.getElementById("fixedFooterHost");
 
   homeBtn.style.display = (state.screen === "home") ? "none" : "block";
 
   app.innerHTML = "";
+  if(footerHost) footerHost.innerHTML = "";
 
   if(state.screen==="home"){
     app.innerHTML = `
@@ -206,12 +209,17 @@ function render(){
     });
     html += `
       </div>
-      <div style="height:80px;"></div>
-      <div class="workout-footer">
-        <button onclick="goPrograms()">⬅️ Geri</button>
-      </div>
+      <div style="height:90px;"></div>
     `;
     app.innerHTML = html;
+
+    if(footerHost){
+      footerHost.innerHTML = `
+        <div class="workout-footer">
+          <button onclick="goPrograms()">⬅️ Geri</button>
+        </div>
+      `;
+    }
   }
 
   if(state.screen==="workout"){
@@ -271,10 +279,6 @@ function render(){
 
     html += `
       <div style="height:90px;"></div>
-      <div class="workout-footer">
-        <button onclick="renderProgramDetail()">⬅️ Geri</button>
-        <button onclick="saveDay()">💾 Kaydet</button>
-      </div>
 `    ;
     html += `
       <div style="position:sticky; bottom:0; background:white; padding:12px; border-top:1px solid #ddd;">
@@ -283,6 +287,15 @@ function render(){
     `;
 
     app.innerHTML = html;
+
+    if(footerHost){
+      footerHost.innerHTML = `
+        <div class="workout-footer">
+          <button onclick="renderProgramDetail()">⬅️ Geri</button>
+          <button onclick="saveDay()">💾 Kaydet</button>
+        </div>
+      `;
+    }
   }
 
   if(state.screen==="measures"){
