@@ -27,7 +27,7 @@ button { font-size:17px; padding:14px; width:100%; border:none; border-radius:10
 .list-item { padding:12px; border-bottom:1px solid #ddd; display:flex; align-items:center; gap:10px; }
 .list-item:last-child { border-bottom:none; }
 .list-main { flex:1; }
-.icon-btn { background:#eee; border:none; border-radius:8px; padding:8px 10px; font-size:16px; }
+.icon-btn { background:#eee; border:none; border-radius:8px; padding:8px 10px; font-size:16px; width:auto; margin-bottom:0; flex:0 0 auto; color:#111; }
 .icon-btn.delete { background:#ffdddd; }
 .icon-btn.export { background:#ddeaff; }
 .done { color:green; font-weight:600; }
@@ -69,6 +69,7 @@ canvas { width:100%; height:260px; border:1px solid #eee; border-radius:8px; }
 
 <input type="file" id="fileInput" accept=".csv" style="display:none" />
 <input type="file" id="backupInput" accept=".json" style="display:none" />
+<input type="file" id="allDataInput" accept=".json" style="display:none" />
 
 
 <script>
@@ -78,6 +79,44 @@ let state = {
   screen: "home",
   selectedProgram: null,
 };
+
+// ===== CSV helpers (basic quoted CSV) =====
+function csvEscape(val){
+  if(val === null || val === undefined) return "\"\"";
+  const s = String(val).replace(/\r/g, "").replace(/"/g, "\"\"");
+  return `"${s}"`;
+}
+
+function parseCSVLine(line){
+  // Minimal RFC4180-ish parser for quotes and commas.
+  let out = [];
+  let cur = "";
+  let inQ = false;
+
+  for(let i=0;i<line.length;i++){
+    const ch = line[i];
+    if(inQ){
+      if(ch === "\""){
+        if(line[i+1] === "\""){ cur += "\""; i++; }
+        else { inQ = false; }
+      } else {
+        cur += ch;
+      }
+    } else {
+      if(ch === ","){
+        out.push(cur);
+        cur = "";
+      } else if(ch === "\""){
+        inQ = true;
+      } else {
+        cur += ch;
+      }
+    }
+  }
+
+  out.push(cur);
+  return out.map(x=>x.trim());
+}
 
 // ===== Storage =====
 function getPrograms() { return JSON.parse(localStorage.getItem("programs") || "[]"); }
@@ -108,8 +147,15 @@ function render(){
       <div class="card"><button onclick="goPrograms()">📋 Program Seç</button></div>
       <div class="card"><button onclick="goMeasures()">⚖️ Ölçü Takibi</button></div>
       <div class="card"><button onclick="goExerciseCharts()">📈 Gelişim Grafikleri</button></div>
-      <div class="card"><button onclick="importProgram()">➕ Yeni Program Ekle (CSV)</button></div>
-      <div class="card"><button onclick="startImportBackup()">📥 Yedek İçe Aktar</button></div>
+
+      <div class="card">
+        <h3>🔁 Cihaz Değiştir / Tüm Veriler</h3>
+        <div class="grid">
+          <button onclick="exportAllData()">📦 Tüm Verileri Export</button>
+          <button onclick="startImportAllData()">📥 Tüm Verileri Import</button>
+        </div>
+        <div class="small">Programlar, ölçüler ve uygulamadaki diğer veriler (varsa) birlikte taşınır.</div>
+      </div>
 
     `;
   }
@@ -128,6 +174,14 @@ function render(){
   `;
 
 });
+
+    html += `
+      <div style="display:flex; gap:10px; margin-top:12px;">
+        <button class="icon-btn" style="flex:1; padding:12px;" onclick="importProgram()">➕ Yeni Program Ekle (CSV)</button>
+        <button class="icon-btn" style="flex:1; padding:12px;" onclick="startImportBackup()">📥 Program İçe Aktar</button>
+      </div>
+      <div class="small" style="margin-top:8px;">CSV ile yeni program ekleyebilir veya JSON yedeği içe aktarabilirsin.</div>
+    `;
 
     html += `</div><button onclick="goHome()">⬅️ Geri</button>`;
     app.innerHTML = html;
@@ -150,7 +204,13 @@ function render(){
         </div>
       `;
     });
-    html += `</div><button onclick="goPrograms()">⬅️ Geri</button>`;
+    html += `
+      </div>
+      <div style="height:80px;"></div>
+      <div class="workout-footer">
+        <button onclick="goPrograms()">⬅️ Geri</button>
+      </div>
+    `;
     app.innerHTML = html;
   }
 
@@ -519,28 +579,41 @@ function addExerciseToDay(){
 function importProgram(){ document.getElementById("fileInput").click(); }
 document.getElementById("fileInput").addEventListener("change", e=>{
   const file = e.target.files[0];
+  if(!file) return;
+  e.target.value = "";
   const reader = new FileReader();
   reader.onload = evt => parseCSV(evt.target.result);
   reader.readAsText(file);
 });
 
 function parseCSV(text){
-  const lines = text.split("\n").map(l=>l.trim()).filter(l=>l);
-  const rows = lines.slice(1).map(l=>l.split(","));
-  const programName = rows[0][0];
-  let program = { name: programName, days: [] };
-  let dayMap = {};
-  rows.forEach(r=>{
-    const week=r[1], day=r[2], exercise=r[3];
-    const sets=parseInt(r[4]), reps=parseInt(r[5]);
-    const key = `Hafta ${week} Gün ${day}`;
-    if(!dayMap[key]){ dayMap[key]={ name:key, exercises:[] }; program.days.push(dayMap[key]); }
-    dayMap[key].exercises.push({ name:exercise, sets, reps });
-  });
-  const programs = getPrograms();
-  programs.push(program);
-  savePrograms(programs);
-  alert("Program eklendi ✅");
+  const lines = text.replace(/\r/g,"").split("\n").map(l=>l.trim()).filter(l=>l);
+  if(lines.length < 2){
+    alert("CSV dosyasi bos veya hatali.");
+    return;
+  }
+
+  const header = parseCSVLine(lines[0]);
+  const rows = lines.slice(1).map(parseCSVLine).filter(r=>r.some(x=>x));
+
+  // 1) Plan CSV (Program, Hafta, Gun, Hareket, Set, Tekrar)
+  const headerJoined = header.map(x=>x.toLowerCase()).join(",");
+  const isPlanCSV = headerJoined.includes("hafta") && headerJoined.includes("hareket");
+
+  // 2) Antrenman kaydi CSV (Program, Gun, Hareket, SetNo, KG, Tekrar, Not?)
+  const isWorkoutCSV = headerJoined.includes("setno") && headerJoined.includes("kg") && headerJoined.includes("tekrar");
+
+  if(isPlanCSV){
+    importProgramPlanCSV(rows);
+    return;
+  }
+
+  if(isWorkoutCSV){
+    importProgramWorkoutCSV(header, rows);
+    return;
+  }
+
+  alert("Bu CSV formati taninmiyor. Lutfen uygulamanin verdigi CSV formatini kullan.");
 }
 
 function deleteProgram(i){
@@ -576,13 +649,20 @@ function exportProgramCSV(i){
   const programs = getPrograms();
   const p = programs[i];
   let rows = [];
-  rows.push(["Program","Gün","Hareket","SetNo","KG","Tekrar"].join(","));
+  rows.push(["Program","Gün","Hareket","SetNo","KG","Tekrar","Not"].join(","));
   p.days.forEach(d=>{
     if(d.records){
       Object.keys(d.records).forEach(exName=>{
+        const note = d.comments?.[exName] || "";
         d.records[exName].forEach((set,idx)=>{
           rows.push([
-            `"${p.name}"`, `"${d.name}"`, `"${exName}"`, idx+1, set.kg||"", set.rep||""
+            csvEscape(p.name),
+            csvEscape(d.name),
+            csvEscape(exName),
+            csvEscape(idx+1),
+            csvEscape(set.kg||""),
+            csvEscape(set.rep||""),
+            csvEscape(note)
           ].join(","));
         });
       });
@@ -668,6 +748,12 @@ document.getElementById("backupInput").addEventListener("change", function(e){
 });
 
 function handleBackupImport(data){
+  // Tüm veri yedeği mi?
+  if(data && data.type === "sporTakipBackup"){
+    handleAllDataImport(data);
+    return;
+  }
+
   // Program yedeği mi?
   if(data && data.name && data.days){
     importProgramBackup(data);
@@ -714,6 +800,7 @@ function importProgramBackup(p){
 
   savePrograms(programs);
   alert("Program içe aktarıldı ✅");
+  render();
 }
 
 // ---- MEASURE IMPORT ----
@@ -727,6 +814,264 @@ function importMeasureBackup(arr){
 
   saveMeasures(measures);
   alert("Ölçü yedeği içe aktarıldı ✅");
+  render();
+}
+
+// ===== FULL APP EXPORT / IMPORT =====
+function exportAllData(){
+  const payload = {
+    type: "sporTakipBackup",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    data: {
+      programs: getPrograms(),
+      measures: getMeasures(),
+      lastUpdatedDay: localStorage.getItem("lastUpdatedDay") || null,
+    }
+  };
+
+  const date = new Date().toISOString().slice(0,10);
+  downloadFile(
+    `spor_takip_tum_veriler_${date}.json`,
+    JSON.stringify(payload, null, 2),
+    "application/json"
+  );
+}
+
+function startImportAllData(){
+  const input = document.getElementById("allDataInput");
+  input.value = "";
+  input.click();
+}
+
+document.getElementById("allDataInput").addEventListener("change", function(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  e.target.value = "";
+
+  const reader = new FileReader();
+  reader.onload = function(evt){
+    try {
+      const data = JSON.parse(evt.target.result);
+      handleAllDataImport(data);
+    } catch(err){
+      alert("Bu dosya geçerli bir JSON yedeği değil.");
+    }
+  };
+  reader.readAsText(file);
+});
+
+function handleAllDataImport(data){
+  // Accept both envelope and legacy shapes.
+  let payload = data;
+  if(data && data.type === "sporTakipBackup" && data.data){
+    payload = data.data;
+  }
+
+  const incomingPrograms = Array.isArray(payload?.programs) ? payload.programs : [];
+  const incomingMeasures = Array.isArray(payload?.measures) ? payload.measures : [];
+
+  // If this is not an all-data backup, try to fall back to known importers.
+  if(incomingPrograms.length === 0 && incomingMeasures.length === 0){
+    if(data && data.name && data.days){ importProgramBackup(data); return; }
+    if(Array.isArray(data) && data.length && data[0].date){ importMeasureBackup(data); return; }
+
+    alert("Bu dosya tanınan bir tüm-veri yedeği değil.");
+    return;
+  }
+
+  const replaceAll = confirm("Tüm veriler içe aktarılacak.\n\nOK = Mevcut verilerin üzerine yaz (sıfırla)\nİptal = Mevcut verilerle birleştir");
+
+  if(replaceAll){
+    savePrograms(incomingPrograms);
+    saveMeasures(incomingMeasures);
+
+    if(payload?.lastUpdatedDay){
+      localStorage.setItem("lastUpdatedDay", payload.lastUpdatedDay);
+    } else {
+      localStorage.removeItem("lastUpdatedDay");
+    }
+
+    alert("Tüm veriler içe aktarıldı ✅");
+    goHome();
+    return;
+  }
+
+  // Merge flow (no per-program prompts).
+  const overwriteConflicts = confirm("Aynı isimli programlar varsa nasıl davranalım?\n\nOK = Üzerine yaz\nİptal = Kopya olarak ekle");
+
+  let existingPrograms = getPrograms();
+  incomingPrograms.forEach(p=>{
+    const idx = existingPrograms.findIndex(x => x.name === p.name);
+    if(idx === -1){
+      existingPrograms.push(p);
+      return;
+    }
+
+    if(overwriteConflicts){
+      existingPrograms[idx] = p;
+      return;
+    }
+
+    let base = p.name;
+    let i = 2;
+    let newName = base + "_" + i;
+    while(existingPrograms.find(x => x.name === newName)){
+      i++;
+      newName = base + "_" + i;
+    }
+    const copy = JSON.parse(JSON.stringify(p));
+    copy.name = newName;
+    existingPrograms.push(copy);
+  });
+  savePrograms(existingPrograms);
+
+  let existingMeasures = getMeasures();
+  incomingMeasures.forEach(m=>{
+    existingMeasures = existingMeasures.filter(x => x.date !== m.date);
+    existingMeasures.push(m);
+  });
+  saveMeasures(existingMeasures);
+
+  alert("Tüm veriler birleştirildi ✅");
+  goHome();
+}
+
+// ===== CSV import variants =====
+function importProgramPlanCSV(rows){
+  if(!rows.length){
+    alert("CSV boş.");
+    return;
+  }
+
+  const programName = (rows[0][0] || "").trim();
+  if(!programName){
+    alert("Program adı bulunamadı.");
+    return;
+  }
+
+  let program = { name: programName, days: [] };
+  let dayMap = {};
+
+  rows.forEach(r=>{
+    const week = (r[1] || "").trim();
+    const day = (r[2] || "").trim();
+    const exercise = (r[3] || "").trim();
+    const sets = parseInt(r[4]);
+    const reps = parseInt(r[5]);
+
+    if(!exercise) return;
+
+    const key = `Hafta ${week} Gün ${day}`;
+    if(!dayMap[key]){
+      dayMap[key] = { name: key, exercises: [] };
+      program.days.push(dayMap[key]);
+    }
+    dayMap[key].exercises.push({
+      name: exercise,
+      sets: isNaN(sets) ? 0 : sets,
+      reps: isNaN(reps) ? "" : reps
+    });
+  });
+
+  let programs = getPrograms();
+  const existingIndex = programs.findIndex(x => x.name === program.name);
+
+  if(existingIndex !== -1){
+    const overwrite = confirm(`"${program.name}" adlı bir program zaten var.\n\nOK = Üzerine yaz\nİptal = Kopya olarak ekle`);
+    if(overwrite){
+      programs[existingIndex] = program;
+    } else {
+      let base = program.name;
+      let i = 2;
+      let newName = base + "_" + i;
+      while(programs.find(x => x.name === newName)){
+        i++;
+        newName = base + "_" + i;
+      }
+      program = JSON.parse(JSON.stringify(program));
+      program.name = newName;
+      programs.push(program);
+    }
+  } else {
+    programs.push(program);
+  }
+
+  savePrograms(programs);
+  alert("Program eklendi ✅");
+  render();
+}
+
+function importProgramWorkoutCSV(header, rows){
+  const h = header.map(x=>x.toLowerCase());
+  const idxProgram = h.indexOf("program");
+  const idxDay = (h.indexOf("gün") !== -1) ? h.indexOf("gün") : h.indexOf("gun");
+  const idxEx = h.indexOf("hareket");
+  const idxSetNo = h.indexOf("setno");
+  const idxKg = h.indexOf("kg");
+  const idxRep = h.indexOf("tekrar");
+  const idxNote = h.indexOf("not");
+
+  if([idxProgram, idxDay, idxEx, idxSetNo, idxKg, idxRep].some(x=>x === -1)){
+    alert("Antrenman CSV basligi eksik/hatali.");
+    return;
+  }
+
+  const programName = (rows[0]?.[idxProgram] || "").trim();
+  if(!programName){
+    alert("Program adı bulunamadı.");
+    return;
+  }
+
+  let program = { name: programName, days: [] };
+  let dayMap = {};
+
+  function getDay(dayName){
+    if(!dayMap[dayName]){
+      dayMap[dayName] = { name: dayName, exercises: [], records: {}, comments: {}, _exMap: {} };
+      program.days.push(dayMap[dayName]);
+    }
+    return dayMap[dayName];
+  }
+
+  rows.forEach(r=>{
+    const dayName = (r[idxDay] || "").trim();
+    const exName = (r[idxEx] || "").trim();
+    const setNoRaw = (r[idxSetNo] || "").trim();
+    const kg = (r[idxKg] || "").trim();
+    const rep = (r[idxRep] || "").trim();
+    const note = (idxNote !== -1) ? (r[idxNote] || "").trim() : "";
+
+    if(!dayName || !exName) return;
+
+    const setNo = parseInt(setNoRaw);
+    if(isNaN(setNo) || setNo < 1) return;
+
+    const day = getDay(dayName);
+
+    if(!day.records[exName]) day.records[exName] = [];
+    while(day.records[exName].length < setNo){
+      day.records[exName].push({kg:"", rep:""});
+    }
+    day.records[exName][setNo-1] = { kg, rep };
+
+    if(note){
+      day.comments[exName] = note;
+    }
+
+    if(!day._exMap[exName]){
+      day._exMap[exName] = { name: exName, sets: 0, reps: "" };
+      day.exercises.push(day._exMap[exName]);
+    }
+    if(setNo > day._exMap[exName].sets){
+      day._exMap[exName].sets = setNo;
+    }
+  });
+
+  program.days.forEach(d=>{ delete d._exMap; });
+
+  // Delegate to JSON program importer to handle name conflicts.
+  importProgramBackup(program);
 }
 
 function collectAllExercises(){
