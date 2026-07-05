@@ -1175,7 +1175,6 @@ function isImportableProgramCSV(rows){
 }
 
 function importProgramMetadataCSV(rows){
-  const programNameFromMeta = {};
   const meta = {};
   let programName = "Imported Program";
   let dayMap = {};
@@ -1187,12 +1186,20 @@ function importProgramMetadataCSV(rows){
     if(!normalized.some(x=>x)) return;
     const lower = normalized.map(x=>x.toLowerCase());
 
-    if(lower[0] === "type" && lower[1] === "key" && lower[2] === "value") return;
-    if(lower[0] === "program" && lower[1] === "week" && lower[2] === "day" && lower[3] === "exercise") return;
+    // skip header-like rows
+    if(lower.includes("type") && lower.includes("key") && lower.includes("value")) return;
+    if(lower.includes("program") && lower.includes("week") && lower.includes("exercise") && lower.includes("day")) return;
 
+    // META rows in some CSVs put the key/value in the last two columns (see provided example)
     if(lower[0] === "meta"){
-      const key = normalized[1] || "";
-      const value = normalized[2] || "";
+      // prefer explicit positions if present, otherwise fall back to last-two-columns
+      let key = "";
+      let value = "";
+      // find last non-empty cells as key/value
+      for(let i = normalized.length - 1; i >= 0; i--){
+        if(normalized[i] && value === "") { value = normalized[i]; continue; }
+        if(normalized[i] && key === "") { key = normalized[i]; break; }
+      }
       if(key){
         meta[key] = value;
         if(key.toLowerCase() === "programname") programName = value || programName;
@@ -1200,22 +1207,52 @@ function importProgramMetadataCSV(rows){
       return;
     }
 
-    if(normalized.length >= 4){
-      const programLabel = normalized[0] || "";
-      const week = normalized[1] || "";
-      const day = normalized[2] || "";
-      const exerciseName = normalized[3] || "";
-      const variant = normalized.length >= 6 ? (normalized[4] || "") : "";
-      const sets = parseInt(normalized.length >= 6 ? (normalized[5] || "") : (normalized[4] || ""));
-      const reps = parseInt(normalized.length >= 7 ? (normalized[6] || "") : (normalized[5] || ""));
+    // EXERCISE rows in the example begin with a Type column (EXERCISE) followed by Program, Week, Day, Exercise, Variant, Sets, Reps
+    if(lower[0] === "exercise"){
+      const programLabel = normalized[1] || "";
+      const week = normalized[2] || "";
+      const day = normalized[3] || "";
+      const exerciseName = normalized[4] || "";
+      const variant = normalized[5] || "";
+      const sets = parseInt(normalized[6]);
+      const reps = parseInt(normalized[7]);
 
       if(!exerciseName) return;
       sawExercise = true;
 
-      if(programLabel){
-        programName = programLabel || programName;
+      if(programLabel){ programName = programLabel || programName; }
+
+      const dayLabel = week ? `Hafta ${week} Gün ${day}` : `Gün ${day || "1"}`;
+      if(!dayMap[dayLabel]){
+        dayMap[dayLabel] = { name: dayLabel, exercises: [], records: {}, comments: {} };
+        program.days.push(dayMap[dayLabel]);
       }
 
+      dayMap[dayLabel].exercises.push({
+        name: exerciseName,
+        sets: isNaN(sets) ? 0 : sets,
+        reps: isNaN(reps) ? "" : reps,
+        variant: variant || "",
+        ExerciseVariant: variant || ""
+      });
+      return;
+    }
+
+    // Fallback: support rows without the leading Type column (legacy/other exporters)
+    if(normalized.length >= 4){
+      // try to interpret as [Program,Week,Day,Exercise,Variant,Sets,Reps]
+      const programLabel = normalized[0] || "";
+      const week = normalized[1] || "";
+      const day = normalized[2] || "";
+      const exerciseName = normalized[3] || "";
+      const variant = normalized[4] || "";
+      const sets = parseInt(normalized[5]);
+      const reps = parseInt(normalized[6]);
+
+      if(!exerciseName) return;
+      sawExercise = true;
+
+      if(programLabel){ programName = programLabel || programName; }
       const dayLabel = week ? `Hafta ${week} Gün ${day}` : `Gün ${day || "1"}`;
       if(!dayMap[dayLabel]){
         dayMap[dayLabel] = { name: dayLabel, exercises: [], records: {}, comments: {} };
