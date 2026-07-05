@@ -10,6 +10,9 @@
 <style>
 body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin:0; background:#f2f2f7; }
 header { background:#111; color:white; padding:16px; font-size:20px; text-align:center; position:relative; }
+.table-wrap { overflow:auto; }
+table { width:100%; border-collapse:collapse; font-size:14px; }
+th, td { padding:8px 6px; border-bottom:1px solid #eee; text-align:left; vertical-align:top; }
 .home-btn {
   position:absolute;
   right:12px;
@@ -37,6 +40,21 @@ button { font-size:17px; padding:14px; width:100%; border:none; border-radius:10
 input, select { padding:10px; font-size:16px; width:100%; margin-bottom:8px; }
 .small { color:#666; font-size:14px; }
 .grid { display:grid; grid-template-columns: 1fr 1fr; gap:8px; }
+.meta-row { display:flex; align-items:center; gap:8px; margin-top:8px; }
+.meta-input { flex:1; padding:8px 10px; font-size:15px; margin-bottom:0; }
+.meta-input.compact { width:auto; min-width:110px; }
+.meta-pill { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; background:#f5f5f5; border-radius:999px; }
+.meta-pill input { margin-bottom:0; padding:4px 6px; width:56px; font-size:14px; }
+.modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.45); display:flex; align-items:center; justify-content:center; padding:16px; z-index:2000; }
+.modal-card { background:white; border-radius:12px; width:min(560px, 100%); max-height:80vh; overflow:auto; padding:16px; }
+.modal-card h4 { margin-top:0; }
+.modal-list { display:grid; gap:8px; margin-top:12px; }
+.modal-item { display:flex; justify-content:space-between; gap:8px; padding:8px 0; border-bottom:1px solid #eee; }
+.modal-item:last-child { border-bottom:none; }
+.prompt-modal-card { background:white; border-radius:14px; width:min(760px, 100%); max-height:85vh; overflow:auto; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,0.2); }
+.prompt-textarea { width:100%; min-height:240px; resize:vertical; padding:12px; border:1px solid #ddd; border-radius:10px; font-size:14px; line-height:1.5; }
+.prompt-actions { display:flex; gap:8px; margin-top:10px; }
+.prompt-actions button { margin-bottom:0; flex:1; }
 canvas { width:100%; height:260px; border:1px solid #eee; border-radius:8px; }
 .workout-footer {
   position: fixed;
@@ -79,6 +97,10 @@ const BOM = "\uFEFF";
 let state = {
   screen: "home",
   selectedProgram: null,
+  historyFilterFrom: "",
+  historyFilterTo: "",
+  previousScreen: null,
+  promptModalOpen: false,
 };
 
 // ===== CSV helpers (basic quoted CSV) =====
@@ -120,22 +142,160 @@ function parseCSVLine(line){
 }
 
 // ===== Storage =====
-function getPrograms() { return JSON.parse(localStorage.getItem("programs") || "[]"); }
-function savePrograms(p) { localStorage.setItem("programs", JSON.stringify(p)); }
+function normalizeProgram(program){
+  if(!program || typeof program !== "object") return program;
+
+  const metadata = {};
+  if(program.metadata && typeof program.metadata === "object"){
+    Object.entries(program.metadata).forEach(([k,v])=>{
+      if(v !== undefined && v !== null) metadata[k] = String(v);
+    });
+  }
+
+  const normalized = { ...program };
+  normalized.metadata = metadata;
+  normalized.name = normalized.name || metadata.ProgramName || metadata.programName || "";
+  normalized.Mesocycle = normalized.Mesocycle ?? normalized.mesocycle ?? metadata.Mesocycle ?? metadata.mesocycle ?? "";
+  normalized.Goal = normalized.Goal ?? normalized.goal ?? metadata.Goal ?? metadata.goal ?? "";
+  normalized.DurationWeeks = normalized.DurationWeeks ?? normalized.durationWeeks ?? metadata.DurationWeeks ?? metadata.durationWeeks ?? "";
+  normalized.CoachVersion = normalized.CoachVersion ?? normalized.coachVersion ?? metadata.CoachVersion ?? metadata.coachVersion ?? "";
+  normalized.CreatedBy = normalized.CreatedBy ?? normalized.createdBy ?? metadata.CreatedBy ?? metadata.createdBy ?? "";
+  normalized.CreatedDate = normalized.CreatedDate ?? normalized.createdDate ?? metadata.CreatedDate ?? metadata.createdDate ?? "";
+  normalized.Notes = normalized.Notes ?? normalized.notes ?? metadata.Notes ?? metadata.notes ?? "";
+  normalized.mesocycle = normalized.Mesocycle;
+  normalized.goal = normalized.Goal;
+  normalized.durationWeeks = normalized.DurationWeeks;
+  normalized.coachVersion = normalized.CoachVersion;
+  normalized.createdBy = normalized.CreatedBy;
+  normalized.createdDate = normalized.CreatedDate;
+  normalized.notes = normalized.Notes;
+
+  normalized.days = (normalized.days || []).map(day=>{
+    const normalizedDay = { ...day };
+    normalizedDay.SessionRPE = normalizedDay.SessionRPE ?? normalizedDay.sessionRPE ?? "";
+    normalizedDay.sessionRPE = normalizedDay.SessionRPE;
+    normalizedDay.records = normalizedDay.records || {};
+    normalizedDay.comments = normalizedDay.comments || {};
+    normalizedDay.exercises = (normalizedDay.exercises || []).map(ex=>{
+      if(typeof ex === "string") return { name: ex, sets: 1, reps: "" };
+      const normalizedEx = { ...ex };
+      normalizedEx.Pain = normalizedEx.Pain ?? normalizedEx.pain ?? "";
+      normalizedEx.ExerciseVariant = normalizedEx.ExerciseVariant ?? normalizedEx.variant ?? "";
+      normalizedEx.pain = normalizedEx.Pain;
+      normalizedEx.variant = normalizedEx.ExerciseVariant;
+      return normalizedEx;
+    });
+    return normalizedDay;
+  });
+  return normalized;
+}
+
+function normalizePrograms(programs){
+  return (programs || []).map(normalizeProgram);
+}
+
+function getPrograms() { return normalizePrograms(JSON.parse(localStorage.getItem("programs") || "[]")); }
+function savePrograms(p) { localStorage.setItem("programs", JSON.stringify(normalizePrograms(p || []))); }
 function getMeasures() { return JSON.parse(localStorage.getItem("measures") || "[]"); }
 function saveMeasures(m) { localStorage.setItem("measures", JSON.stringify(m)); }
+function getMovementHistory() { return JSON.parse(localStorage.getItem("movementHistory") || "[]"); }
+function saveMovementHistory(history) { localStorage.setItem("movementHistory", JSON.stringify(history)); }
+
+function formatDisplayDate(dateStr){
+  if(!dateStr) return "";
+  const parts = String(dateStr).split("-");
+  if(parts.length !== 3) return dateStr;
+  const [y,m,d] = parts;
+  return `${d}.${m}.${y}`;
+}
+
+function syncMovementHistoryFromPrograms(){
+  const programs = getPrograms();
+  const history = getMovementHistory();
+  const existingKeys = new Set(history.map(item => item.key));
+
+  programs.forEach(program => {
+    const programName = program.name || "";
+    (program.days || []).forEach(day => {
+      const date = day.date || "";
+      if(!date) return;
+      (day.exercises || []).forEach(ex => {
+        const exerciseName = ex.name || "";
+        const sets = Array.isArray(day.records?.[exerciseName])
+          ? day.records[exerciseName].map(set => ({ kg: set.kg || "", rep: set.rep || "" }))
+          : [];
+        const pain = (ex.Pain ?? ex.pain ?? "") || "";
+        const note = day.comments?.[exerciseName] || "";
+        const key = `${date}::${programName}::${day.name || ""}::${exerciseName}`;
+        if(existingKeys.has(key)) return;
+
+        history.push({
+          key,
+          date,
+          programName,
+          dayName: day.name || "",
+          exerciseName,
+          sets,
+          pain,
+          note,
+        });
+        existingKeys.add(key);
+      });
+    });
+  });
+
+  if(history.length !== getMovementHistory().length){
+    saveMovementHistory(history);
+  }
+}
+
+function buildHistoryEntryFromWorkout({date, programName, dayName, exerciseName, sets, pain, note}){
+  return {
+    key: `${date}::${programName}::${dayName || ""}::${exerciseName}`,
+    date,
+    programName,
+    dayName,
+    exerciseName,
+    sets: (sets || []).map(set => ({ kg: set.kg || "", rep: set.rep || "" })),
+    pain: pain || "",
+    note: note || "",
+  };
+}
 
 // ===== Navigation =====
-function goHome(){ state.screen="home"; render(); }
+function goHome(){ state.screen="home"; state.previousScreen = null; render(); }
 function goPrograms(){ state.screen="programs"; render(); }
+function openPromptModal(){ state.promptModalOpen = true; render(); }
+function closePromptModal(){ state.promptModalOpen = false; render(); }
+function copyPromptText(){
+  const text = document.getElementById("aiPromptText");
+  if(text){
+    text.select();
+    text.setSelectionRange(0, text.value.length);
+    navigator.clipboard.writeText(text.value);
+    alert("Prompt kopyalandı ✅");
+  }
+}
 function goMeasures(){ state.screen="measures"; render(); }
 function goMeasureExport(){ state.screen="measureExport"; render(); }
 function goMeasureCharts(){ state.screen="measureCharts"; render(); }
-function goExerciseCharts(){ state.screen="exerciseCharts"; render(); }
+function goExerciseCharts(){ state.previousScreen = state.screen; state.screen="exerciseCharts"; render(); }
+function goBack(){
+  if(state.previousScreen){
+    const target = state.previousScreen;
+    state.previousScreen = null;
+    state.screen = target;
+    render();
+    return;
+  }
+  goHome();
+}
 
 
 // ===== Render =====
 function render(){
+  syncMovementHistoryFromPrograms();
+
   const app = document.getElementById("app");
   const homeBtn = document.getElementById("homeBtn");
   const footerHost = document.getElementById("fixedFooterHost");
@@ -170,6 +330,7 @@ function render(){
       html += `
         <div class="list-item" onclick="openProgram(${i})">
           <div class="list-main">${p.name}</div>
+          <button class="icon-btn" onclick="event.stopPropagation(); openProgramInfo(${i})">ⓘ</button>
           <button class="icon-btn export" onclick="event.stopPropagation(); exportProgramMenu(${i})">📤</button>
           <button class="icon-btn" onclick="event.stopPropagation(); renameProgram(${i})">✏️</button>
           <button class="icon-btn delete" onclick="event.stopPropagation(); deleteProgram(${i})">🗑️</button>
@@ -182,17 +343,256 @@ function render(){
       <div style="display:flex; gap:10px; margin-top:12px;">
         <button class="icon-btn" style="flex:1; padding:12px;" onclick="importProgram()">➕ Yeni Program Ekle (CSV)</button>
         <button class="icon-btn" style="flex:1; padding:12px;" onclick="startImportBackup()">📥 Program İçe Aktar</button>
+        <button class="icon-btn" style="flex:1; padding:12px;" onclick="openPromptModal()">🤖 AI Prompt</button>
       </div>
-      <div class="small" style="margin-top:8px;">CSV ile yeni program ekleyebilir veya JSON yedeği içe aktarabilirsin.</div>
+      <div class="small" style="margin-top:8px;">CSV ile yeni program ekleyebilir, JSON yedeği içe aktarabilir veya AI prompt’u kullanabilirsin.</div>
     `;
 
     html += `</div><button onclick="goHome()">⬅️ Geri</button>`;
+    if(state.promptModalOpen){
+      html += `
+        <div class="modal-backdrop" onclick="closePromptModal()">
+          <div class="prompt-modal-card" onclick="event.stopPropagation()">
+            <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+              <h3 style="margin:0;">🤖 AI Program Prompt</h3>
+              <button class="icon-btn" onclick="closePromptModal()">✕</button>
+            </div>
+            <div class="small" style="margin-top:6px;">Bu metni AI aracına yapıştırarak kişiselleştirilmiş program CSV’si oluşturabilirsin.</div>
+            <textarea id="aiPromptText" class="prompt-textarea" spellcheck="false">Sen deneyimli bir Strength & Hypertrophy Coach'sun.
+
+Görevin yalnızca spor programı yazmak değildir.
+
+Kullanıcının;
+
+- yaşı
+- cinsiyeti
+- boyu
+- kilosu
+- antrenman geçmişi
+- sakatlıkları
+- sağlık durumu
+- ekipman imkanları
+- antrenman süresi
+- haftalık antrenman günü
+- hedefleri
+
+gibi bütün bilgileri değerlendirerek tamamen kişiselleştirilmiş bir bodybuilding programı oluşturmaktır.
+
+==========================================================
+HEDEF
+==========================================================
+
+Program;
+
+- bilimsel temellere dayanmalı
+- progressive overload desteklemeli
+- uzun dönem gelişime uygun olmalı
+- eklem sağlığını gözetmeli
+- kullanıcının seviyesine uygun olmalı
+
+Hazırlanan program uygulamaya doğrudan import edilecektir.
+
+Bu nedenle çıktı yalnızca tanımlanan CSV formatında verilmelidir.
+
+Markdown kullanma.
+
+Açıklama yazma.
+
+Sadece CSV üret.
+
+==========================================================
+PROGRAM TASARIM PRENSİPLERİ
+==========================================================
+
+Program;
+
+- Upper Lower
+- Push Pull Legs
+- Full Body
+- Arnold
+- Bro Split
+
+gibi sistemlerden kullanıcıya en uygun olanı seçmelidir.
+
+Programı kullanıcı istemese bile gerekçeye göre sen seç.
+
+==========================================================
+PROGRAM SÜRESİ
+==========================================================
+
+Varsayılan:
+
+4 hafta
+
+Her program tek bir Mesocycle olmalıdır.
+
+==========================================================
+PROGRAM METADATA
+==========================================================
+
+CSV'nin ilk satırları META kayıtları olmalıdır.
+
+Örnek:
+
+Type,Program,Week,Day,Exercise,Variant,Sets,Reps,Key,Value
+
+META,,,,,,,,ProgramName,Upper Lower Upper
+META,,,,,,,,Mesocycle,1
+META,,,,,,,,Goal,Hypertrophy
+META,,,,,,,,DurationWeeks,4
+META,,,,,,,,CoachVersion,v1.0
+META,,,,,,,,TrainingStyle,Upper Lower Upper
+META,,,,,,,,PriorityMuscle,Chest & Arms
+META,,,,,,,,ExperienceLevel,Intermediate
+META,,,,,,,,CreatedBy,ChatGPT
+META,,,,,,,,Notes,Focus on progressive overload
+
+Yeni metadata alanları eklemekten çekinme.
+
+==========================================================
+EXERCISE FORMAT
+==========================================================
+
+META satırlarından sonra egzersizler yazılacaktır.
+
+Kolonlar:
+
+Type
+Program
+Week
+Day
+Exercise
+Variant
+Sets
+Reps
+
+Örnek:
+
+EXERCISE,Upper Lower Upper,1,1,Incline Chest Press,Smith Machine,4,10
+
+==========================================================
+EXERCISE NAME
+==========================================================
+
+Exercise
+
+yalnızca temel hareket ismini içermelidir.
+
+Örneğin
+
+Incline Chest Press
+
+Cable Curl
+
+Lat Pulldown
+
+==========================================================
+VARIANT
+==========================================================
+
+Variant
+
+hareket varyasyonunu belirtir.
+
+Örneğin
+
+Smith Machine
+
+EZ Bar
+
+Wide Grip
+
+Neutral Grip
+
+Machine
+
+Single Arm
+
+Rope
+
+Boş bırakılabilir.
+
+==========================================================
+PROGRAM KALİTESİ
+==========================================================
+
+Program hazırlanırken;
+
+haftalık hacim
+
+kas grubu dengesi
+
+hareket çeşitliliği
+
+progressive overload
+
+toparlanma
+
+eklem sağlığı
+
+kas gelişimi
+
+birlikte değerlendirilmelidir.
+
+==========================================================
+PROGRESSIVE OVERLOAD
+==========================================================
+
+Her program
+
+bir sonraki Mesocycle'a temel oluşturmalıdır.
+
+Rastgele hareket değiştirme.
+
+Gerçek bir koç gibi düşün.
+
+==========================================================
+SAKATLIK
+==========================================================
+
+Kullanıcının sakatlığı varsa
+
+hareketleri değiştir.
+
+Gerekirse varyasyon öner.
+
+Asla ağrı oluşturan hareketleri yazma.
+
+==========================================================
+EKİPMAN
+==========================================================
+
+Kullanıcının spor salonundaki ekipmanlara göre hareket seç.
+
+==========================================================
+ÇIKTI
+==========================================================
+
+Sadece CSV üret.
+
+CSV dışında hiçbir açıklama verme.
+
+Markdown kullanma.
+
+Kod bloğu kullanma.</textarea>
+            <div class="prompt-actions">
+              <button onclick="copyPromptText()">📋 Hepsini Kopyala</button>
+              <button onclick="closePromptModal()">✖ Kapat</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+    if(state.modal === "programInfo" && state.programInfoIndex !== null && state.programInfoIndex !== undefined){
+      html += renderProgramInfoModal(state.programInfoIndex);
+    }
     app.innerHTML = html;
   }
 
   if(state.screen==="programDetail"){
     const p = state.selectedProgram;
-    let html = `<div class="card"><h3>${p.name}</h3>`;
+    let html = `<div class="card"><h3>${p.name}</h3></div><div class="card"><h3>🗓️ Günler</h3>`;
+
     p.days.forEach((d,i)=>{
       html += `
         <div class="list-item" onclick="openDay(${i})">
@@ -247,11 +647,14 @@ function render(){
       const comment = day.comments?.[ex.name] || "";
       html += `<div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;">
-          <b>${ex.name}</b>
+          <b>${getExerciseDisplayName(ex)}</b>
           <button class="icon-btn" onclick="toggleHistory('${ex.name.replace(/'/g,"\\'")}', ${ei})">📜</button>
         </div>
 
         <div class="small">Hedef: ${ex.sets} x ${ex.reps}</div>
+        <div class="meta-row">
+          <span class="meta-pill">🩹 <input class="meta-input compact" id="pain-${ei}" type="number" min="0" max="10" inputmode="numeric" placeholder="Pain" value="${ex.Pain ?? ex.pain ?? ""}"></span>
+        </div>
         <textarea id="comment-${ei}" placeholder="📝 Not / Yorum (opsiyonel)" style="width:100%;margin-top:8px;">${comment}</textarea>
         <div id="history-${ei}" style="display:none;margin-top:8px;"></div>
       `;
@@ -278,6 +681,11 @@ function render(){
     `;
 
     html += `
+      <div class="card">
+        <h4>Session RPE</h4>
+        <div class="small">Antrenmanın genel zorluk seviyesi.</div>
+        <input id="session-rpe" type="number" min="1" max="10" placeholder="1-10" value="${day.SessionRPE ?? day.sessionRPE ?? ""}">
+      </div>
       <div style="height:90px;"></div>
 `    ;
     html += `
@@ -392,17 +800,16 @@ function render(){
 
   if(state.screen==="exerciseCharts"){
     const exercises = collectAllExercises();
-
-    if(exercises.length === 0){
-      app.innerHTML = `
-        <div class="card">
-          <h3>📈 Gelişim Grafikleri</h3>
-          <div class="small">Henüz hiç kayıtlı egzersiz yok.</div>
-        </div>
-        <button onclick="goHome()">⬅️ Geri</button>
-      `;
-      return;
-    }
+    const history = getMovementHistory().slice().sort((a,b)=> b.date.localeCompare(a.date));
+    const from = state.historyFilterFrom || "";
+    const to = state.historyFilterTo || "";
+    const filteredHistory = history.filter(item => {
+      const itemDate = item.date || "";
+      if(from && itemDate < from) return false;
+      if(to && itemDate > to) return false;
+      return true;
+    });
+    const setCount = filteredHistory.reduce((max, item) => Math.max(max, item.sets ? item.sets.length : 0), 0);
 
     let options = exercises.map(e=>`<option value="${e}">${e}</option>`).join("");
 
@@ -414,8 +821,55 @@ function render(){
         </select>
         <canvas id="exerciseChart" width="400" height="260"></canvas>
       </div>
-      <button onclick="goHome()">⬅️ Geri</button>
+
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+          <h3 style="margin:0;">🕘 Hareket Geçmişi</h3>
+          <button class="icon-btn" onclick="exportMovementHistoryCSV()" title="CSV Export">📤</button>
+        </div>
+        <div class="grid" style="margin-top:8px;">
+          <input id="history-from" type="date" value="${from}" onchange="state.historyFilterFrom=this.value; render()" placeholder="Başlangıç">
+          <input id="history-to" type="date" value="${to}" onchange="state.historyFilterTo=this.value; render()" placeholder="Bitiş">
+        </div>
+        <div class="small" style="margin-top:8px;">Tarih bazlı, programlardan bağımsız geçmiş kayıtlar.</div>
+        ${filteredHistory.length === 0 ? "<div class='small' style='margin-top:8px;'>Henüz geçmiş kayıt yok.</div>" : `
+          <div class="table-wrap" style="margin-top:10px;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Tarih</th>
+                  <th>Program Adı</th>
+                  <th>Hareket Adı</th>
+                  ${Array.from({length:setCount},(_,i)=>`<th>Set${i+1}</th>`).join("")}
+                  <th>Pain Score</th>
+                  <th>Not</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${filteredHistory.map(item=>`
+                  <tr>
+                    <td>${formatDisplayDate(item.date)}</td>
+                    <td>${item.programName || ""}</td>
+                    <td>${item.exerciseName || ""}</td>
+                    ${Array.from({length:setCount},(_,i)=>`<td>${item.sets && item.sets[i] ? `${item.sets[i].kg || ""}x${item.sets[i].rep || ""}` : ""}</td>`).join("")}
+                    <td>${item.pain || ""}</td>
+                    <td>${item.note || ""}</td>
+                  </tr>
+                `).join("")}
+              </tbody>
+            </table>
+          </div>
+        `}
+      </div>
     `;
+
+    if(footerHost){
+      footerHost.innerHTML = `
+        <div class="workout-footer">
+          <button onclick="goBack()">⬅️ Geri</button>
+        </div>
+      `;
+    }
 
     drawExerciseChart();
   }
@@ -516,26 +970,54 @@ function saveDay(){
   const day = programs[state.programIndex].days[state.selectedDayIndex];
   let records = {};
   let comments = {};
+  const history = getMovementHistory();
+  const programName = programs[state.programIndex].name || "";
+  const date = document.getElementById("workout-date").value;
   day.exercises.forEach((ex,ei)=>{
+    const painInput = document.getElementById(`pain-${ei}`);
+    const painValue = painInput ? painInput.value : "";
+    ex.Pain = painValue;
+    ex.pain = painValue;
+
     records[ex.name]=[];
     for(let s=0;s<ex.sets;s++){
       const kg = document.getElementById(`kg-${ei}-${s}`).value;
       const rep = document.getElementById(`rep-${ei}-${s}`).value;
       records[ex.name].push({kg,rep});
-      const c = document.getElementById(`comment-${ei}`).value;
+    }
+
+    const c = document.getElementById(`comment-${ei}`).value;
     if(c && c.trim()){
       comments[ex.name] = c.trim();
     }
-    }
   });
   day.records = records;
-  const d = document.getElementById("workout-date").value;
-  if(d){
-    day.date = d;
+  day.SessionRPE = document.getElementById("session-rpe")?.value || "";
+  day.sessionRPE = day.SessionRPE;
+  if(date){
+    day.date = date;
   }
 
   day.comments = comments;
   savePrograms(programs);
+
+  day.exercises.forEach((ex,ei)=>{
+    const painValue = document.getElementById(`pain-${ei}`)?.value || "";
+    const note = comments[ex.name] || "";
+    const sets = records[ex.name] || [];
+    const entry = buildHistoryEntryFromWorkout({
+      date: date || day.date || "",
+      programName,
+      dayName: day.name || "",
+      exerciseName: ex.name,
+      sets,
+      pain: painValue,
+      note,
+    });
+    entry.key = `${entry.date}::${entry.programName}::${entry.dayName || ""}::${entry.exerciseName}::${Date.now()}::${ei}`;
+    history.push(entry);
+  });
+  saveMovementHistory(history.sort((a,b)=> b.date.localeCompare(a.date)));
   // 🔥 KRİTİK: bellekteki programı güncel veriden yenile
   state.selectedProgram = getPrograms()[state.programIndex];
 
@@ -589,6 +1071,62 @@ function addExerciseToDay(){
   render();
 }
 
+function openProgramInfo(i){
+  state.modal = "programInfo";
+  state.programInfoIndex = i;
+  render();
+}
+
+function closeProgramInfo(){
+  state.modal = null;
+  state.programInfoIndex = null;
+  render();
+}
+
+function renderProgramInfoModal(i){
+  const programs = getPrograms();
+  const p = normalizeProgram(programs[i]);
+  const data = getProgramMetadataDetails(p);
+
+  return `
+    <div class="modal-backdrop" onclick="closeProgramInfo()">
+      <div class="modal-card" onclick="event.stopPropagation()">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+          <h4>ℹ️ Program Bilgisi</h4>
+          <button class="icon-btn" onclick="closeProgramInfo()">✕</button>
+        </div>
+        <div class="modal-list">
+          ${data.map(item=>`
+            <div class="modal-item">
+              <div class="small"><b>${item.label}</b></div>
+              <div>${item.value || "—"}</div>
+            </div>
+          `).join("")}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function getProgramMetadataDetails(program){
+  const p = normalizeProgram(program);
+  const meta = p.metadata || {};
+  const values = [];
+  const add = (label, value) => values.push({label, value: value || ""});
+
+  add("Program Name", p.name || meta.ProgramName || meta.programName || "");
+  add("Mesocycle", p.Mesocycle || meta.Mesocycle || meta.mesocycle || "");
+  add("Goal", p.Goal || meta.Goal || meta.goal || "");
+  add("Duration", p.DurationWeeks || meta.DurationWeeks || meta.durationWeeks || "");
+  add("Coach Version", p.CoachVersion || meta.CoachVersion || meta.coachVersion || "");
+  add("Created Date", p.CreatedDate || meta.CreatedDate || meta.createdDate || "");
+  add("Notes", p.Notes || meta.Notes || meta.notes || "");
+
+  const extra = Object.keys(meta).filter(key => !["ProgramName","Mesocycle","Goal","DurationWeeks","CoachVersion","CreatedBy","CreatedDate","Notes","programName","mesocycle","goal","durationWeeks","coachVersion","createdBy","createdDate","notes"].includes(key));
+  extra.forEach(key => add(key, meta[key]));
+  return values;
+}
+
 function importProgram(){ document.getElementById("fileInput").click(); }
 document.getElementById("fileInput").addEventListener("change", e=>{
   const file = e.target.files[0];
@@ -606,27 +1144,117 @@ function parseCSV(text){
     return;
   }
 
-  const header = parseCSVLine(lines[0]);
-  const rows = lines.slice(1).map(parseCSVLine).filter(r=>r.some(x=>x));
+  const rows = lines.map(parseCSVLine).filter(r=>r.some(x=>x));
+  if(isImportableProgramCSV(rows)){
+    importProgramMetadataCSV(rows);
+    return;
+  }
 
-  // 1) Plan CSV (Program, Hafta, Gun, Hareket, Set, Tekrar)
+  const header = rows[0] || [];
+  const bodyRows = rows.slice(1);
   const headerJoined = header.map(x=>x.toLowerCase()).join(",");
   const isPlanCSV = headerJoined.includes("hafta") && headerJoined.includes("hareket");
-
-  // 2) Antrenman kaydi CSV (Program, Gun, Hareket, SetNo, KG, Tekrar, Not?)
   const isWorkoutCSV = headerJoined.includes("setno") && headerJoined.includes("kg") && headerJoined.includes("tekrar");
 
   if(isPlanCSV){
-    importProgramPlanCSV(rows);
+    importProgramPlanCSV(bodyRows);
     return;
   }
 
   if(isWorkoutCSV){
-    importProgramWorkoutCSV(header, rows);
+    importProgramWorkoutCSV(header, bodyRows);
     return;
   }
 
   alert("Bu CSV formati taninmiyor. Lutfen uygulamanin verdigi CSV formatini kullan.");
+}
+
+function isImportableProgramCSV(rows){
+  const normalized = rows.map(r=>r.map(x=>String(x||"").trim().toLowerCase()));
+  return normalized.some(r=>r[0]==="meta" && r[1]==="programname") || normalized.some(r=>r[0]==="type" && r[1]==="key" && r[2]==="value") || normalized.some(r=>r[0]==="program" && r[3]==="exercise");
+}
+
+function importProgramMetadataCSV(rows){
+  const programNameFromMeta = {};
+  const meta = {};
+  let programName = "Imported Program";
+  let dayMap = {};
+  let program = { name: programName, metadata: meta, days: [] };
+  let sawExercise = false;
+
+  rows.forEach(row=>{
+    const normalized = row.map(x=>String(x||"").trim());
+    if(!normalized.some(x=>x)) return;
+    const lower = normalized.map(x=>x.toLowerCase());
+
+    if(lower[0] === "type" && lower[1] === "key" && lower[2] === "value") return;
+    if(lower[0] === "program" && lower[1] === "week" && lower[2] === "day" && lower[3] === "exercise") return;
+
+    if(lower[0] === "meta"){
+      const key = normalized[1] || "";
+      const value = normalized[2] || "";
+      if(key){
+        meta[key] = value;
+        if(key.toLowerCase() === "programname") programName = value || programName;
+      }
+      return;
+    }
+
+    if(normalized.length >= 4){
+      const programLabel = normalized[0] || "";
+      const week = normalized[1] || "";
+      const day = normalized[2] || "";
+      const exerciseName = normalized[3] || "";
+      const variant = normalized.length >= 6 ? (normalized[4] || "") : "";
+      const sets = parseInt(normalized.length >= 6 ? (normalized[5] || "") : (normalized[4] || ""));
+      const reps = parseInt(normalized.length >= 7 ? (normalized[6] || "") : (normalized[5] || ""));
+
+      if(!exerciseName) return;
+      sawExercise = true;
+
+      if(programLabel){
+        programName = programLabel || programName;
+      }
+
+      const dayLabel = week ? `Hafta ${week} Gün ${day}` : `Gün ${day || "1"}`;
+      if(!dayMap[dayLabel]){
+        dayMap[dayLabel] = { name: dayLabel, exercises: [], records: {}, comments: {} };
+        program.days.push(dayMap[dayLabel]);
+      }
+
+      dayMap[dayLabel].exercises.push({
+        name: exerciseName,
+        sets: isNaN(sets) ? 0 : sets,
+        reps: isNaN(reps) ? "" : reps,
+        variant: variant || "",
+        ExerciseVariant: variant || ""
+      });
+    }
+  });
+
+  if(!sawExercise){
+    alert("Bu CSV’de egzersiz satırı bulunamadı.");
+    return;
+  }
+
+  program.name = programName;
+  program.metadata = meta;
+  program.Mesocycle = meta.Mesocycle || meta.mesocycle || "";
+  program.Goal = meta.Goal || meta.goal || "";
+  program.DurationWeeks = meta.DurationWeeks || meta.durationWeeks || "";
+  program.CoachVersion = meta.CoachVersion || meta.coachVersion || "";
+  program.CreatedBy = meta.CreatedBy || meta.createdBy || "";
+  program.CreatedDate = meta.CreatedDate || meta.createdDate || "";
+  program.Notes = meta.Notes || meta.notes || "";
+  program.mesocycle = program.Mesocycle;
+  program.goal = program.Goal;
+  program.durationWeeks = program.DurationWeeks;
+  program.coachVersion = program.CoachVersion;
+  program.createdBy = program.CreatedBy;
+  program.createdDate = program.CreatedDate;
+  program.notes = program.Notes;
+
+  importProgramBackup(program);
 }
 
 function deleteProgram(i){
@@ -654,35 +1282,64 @@ function exportProgramMenu(i){ state.exportProgramIndex=i; state.screen="program
 
 function exportProgramJSON(i){
   const programs = getPrograms();
-  const data = JSON.stringify(programs[i], null, 2);
-  downloadFile(`program_${programs[i].name}.json`, data, "application/json");
+  const p = normalizeProgram(programs[i]);
+  const data = JSON.stringify(p, null, 2);
+  downloadFile(`program_${p.name}.json`, data, "application/json");
 }
 
 function exportProgramCSV(i){
   const programs = getPrograms();
-  const p = programs[i];
+  const p = normalizeProgram(programs[i]);
+  const meta = p.metadata || {};
   let rows = [];
-  rows.push(["Program","Gün","Hareket","SetNo","KG","Tekrar","Not"].join(","));
-  p.days.forEach(d=>{
-    if(d.records){
-      Object.keys(d.records).forEach(exName=>{
-        const note = d.comments?.[exName] || "";
-        d.records[exName].forEach((set,idx)=>{
-          rows.push([
-            csvEscape(p.name),
-            csvEscape(d.name),
-            csvEscape(exName),
-            csvEscape(idx+1),
-            csvEscape(set.kg||""),
-            csvEscape(set.rep||""),
-            csvEscape(note)
-          ].join(","));
-        });
-      });
-    }
+
+  rows.push(["Type","Key","Value"].join(","));
+  const metaEntries = Object.entries(meta);
+  if(metaEntries.length > 0){
+    metaEntries.forEach(([key,value])=>{
+      rows.push(["META", csvEscape(key), csvEscape(value)].join(","));
+    });
+  }
+  if(!metaEntries.some(([key])=>key.toLowerCase()==="programname")){
+    rows.push(["META", "ProgramName", csvEscape(p.name || "")].join(","));
+  }
+  if(!metaEntries.some(([key])=>key.toLowerCase()==="mesocycle")){
+    rows.push(["META", "Mesocycle", csvEscape(p.Mesocycle || p.mesocycle || "")].join(","));
+  }
+  if(!metaEntries.some(([key])=>key.toLowerCase()==="goal")){
+    rows.push(["META", "Goal", csvEscape(p.Goal || p.goal || "")].join(","));
+  }
+  if(!metaEntries.some(([key])=>key.toLowerCase()==="durationweeks")){
+    rows.push(["META", "DurationWeeks", csvEscape(p.DurationWeeks || p.durationWeeks || "")].join(","));
+  }
+  if(!metaEntries.some(([key])=>key.toLowerCase()==="coachversion")){
+    rows.push(["META", "CoachVersion", csvEscape(p.CoachVersion || p.coachVersion || "")].join(","));
+  }
+  if(!metaEntries.some(([key])=>key.toLowerCase()==="createddate")){
+    rows.push(["META", "CreatedDate", csvEscape(p.CreatedDate || p.createdDate || "")].join(","));
+  }
+  if(!metaEntries.some(([key])=>key.toLowerCase()==="notes")){
+    rows.push(["META", "Notes", csvEscape(p.Notes || p.notes || "")].join(","));
+  }
+
+  rows.push(["Program","Week","Day","Exercise","Variant","Sets","Reps"].join(","));
+  p.days.forEach((d, dayIndex)=>{
+    (d.exercises || []).forEach(ex=>{
+      const variant = ex.ExerciseVariant || ex.variant || "";
+      rows.push([
+        csvEscape(p.name || ""),
+        csvEscape(dayIndex + 1),
+        csvEscape(d.name || dayIndex + 1),
+        csvEscape(ex.name || ""),
+        csvEscape(variant),
+        csvEscape(ex.sets || ""),
+        csvEscape(ex.reps || "")
+      ].join(","));
+    });
   });
+
   const csv = BOM + rows.join("\n");
-  downloadFile(`program_${p.name}_antrenman.csv`, csv, "text/csv;charset=utf-8;");
+  downloadFile(`program_${p.name}_import.csv`, csv, "text/csv;charset=utf-8;");
 }
 
 function saveMeasure(){
@@ -1085,6 +1742,41 @@ function importProgramWorkoutCSV(header, rows){
 
   // Delegate to JSON program importer to handle name conflicts.
   importProgramBackup(program);
+}
+
+function getExerciseDisplayName(ex){
+  const name = ex?.name || "";
+  const variant = (ex?.ExerciseVariant ?? ex?.variant ?? "").toString().trim();
+  if(!variant) return name;
+  return `${name} - ${variant}`;
+}
+
+function exportMovementHistoryCSV(){
+  const history = getMovementHistory().slice().sort((a,b)=> b.date.localeCompare(a.date));
+  const from = state.historyFilterFrom || "";
+  const to = state.historyFilterTo || "";
+  const filtered = history.filter(item => {
+    const itemDate = item.date || "";
+    if(from && itemDate < from) return false;
+    if(to && itemDate > to) return false;
+    return true;
+  });
+  const setCount = filtered.reduce((max, item) => Math.max(max, item.sets ? item.sets.length : 0), 0);
+  const headers = ["Tarih","Program Adı","Hareket Adı", ...Array.from({length:setCount},(_,i)=>`Set${i+1}`), "Pain Score","Not"];
+  const rows = [headers.join(",")];
+  filtered.forEach(item=>{
+    const values = [
+      formatDisplayDate(item.date),
+      item.programName || "",
+      item.exerciseName || "",
+      ...Array.from({length:setCount},(_,i)=> item.sets && item.sets[i] ? `${item.sets[i].kg || ""}x${item.sets[i].rep || ""}` : ""),
+      item.pain || "",
+      item.note || ""
+    ];
+    rows.push(values.map(csvEscape).join(","));
+  });
+  const csv = BOM + rows.join("\n");
+  downloadFile(`hareket_gecmisi_${new Date().toISOString().slice(0,10)}.csv`, csv, "text/csv;charset=utf-8;");
 }
 
 function collectAllExercises(){
