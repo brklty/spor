@@ -1171,7 +1171,10 @@ function parseCSV(text){
 
 function isImportableProgramCSV(rows){
   const normalized = rows.map(r=>r.map(x=>String(x||"").trim().toLowerCase()));
-  return normalized.some(r=>r[0]==="meta" && r[1]==="programname") || normalized.some(r=>r[0]==="type" && r[1]==="key" && r[2]==="value") || normalized.some(r=>r[0]==="program" && r[3]==="exercise");
+  const hasMetaProgramName = normalized.some(r=>r[0]==="meta" && r.some((cell,i)=>i>0 && cell==="programname"));
+  const hasMetaKeyValueHeader = normalized.some(r=>r[0]==="type" && r[1]==="key" && r[2]==="value");
+  const hasProgramExerciseHeader = normalized.some(r=>r[0]==="program" && r[3]==="exercise");
+  return hasMetaProgramName || hasMetaKeyValueHeader || hasProgramExerciseHeader;
 }
 
 function importProgramMetadataCSV(rows){
