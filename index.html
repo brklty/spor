@@ -8,70 +8,107 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Spor Takip</title>
 <style>
-body { font-family: -apple-system, BlinkMacSystemFont, sans-serif; margin:0; background:#f2f2f7; }
-header { background:#111; color:white; padding:16px; font-size:20px; text-align:center; position:relative; }
-.table-wrap { overflow:auto; }
+body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif; margin:0; background:linear-gradient(180deg, #f5f7fb 0%, #eef2f7 100%); color:#1d1d1f; -webkit-tap-highlight-color:transparent; }
+header { background:rgba(255,255,255,0.82); color:#111; padding:14px 16px 12px; font-size:20px; font-weight:700; text-align:center; position:sticky; top:0; z-index:1000; backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); border-bottom:1px solid rgba(0,0,0,0.06); }
+.table-wrap { overflow:auto; border-radius:12px; }
 table { width:100%; border-collapse:collapse; font-size:14px; }
-th, td { padding:8px 6px; border-bottom:1px solid #eee; text-align:left; vertical-align:top; }
+th, td { padding:8px 6px; border-bottom:1px solid #ececf3; text-align:left; vertical-align:top; }
 .home-btn {
   position:absolute;
   right:12px;
-  top:12px;
-  background:#333;
-  color:white;
+  top:50%;
+  transform:translateY(-50%);
+  background:#f5f5f5;
+  color:#111;
   border:none;
-  border-radius:8px;
-  padding:6px 10px;
-  font-size:18px;
+  border-radius:999px;
+  padding:8px 10px;
+  font-size:16px;
+  box-shadow:0 2px 8px rgba(0,0,0,0.06);
 }
-.container { padding:16px; padding-bottom: calc(16px + 90px + env(safe-area-inset-bottom)); }
-.card { background:white; border-radius:12px; padding:16px; margin-bottom:12px; }
-button { font-size:17px; padding:14px; width:100%; border:none; border-radius:10px; background:black; color:white; margin-bottom:10px; }
-.list-item { padding:12px; border-bottom:1px solid #ddd; display:flex; align-items:center; gap:10px; }
+.container { padding:16px; padding-bottom: calc(16px + 96px + env(safe-area-inset-bottom)); box-sizing:border-box; max-width:860px; margin:0 auto; }
+.card { background:rgba(255,255,255,0.96); border:1px solid rgba(0,0,0,0.04); border-radius:20px; padding:14px; margin-bottom:12px; box-shadow:0 8px 24px rgba(15,23,42,0.06); }
+.hero-card { background:linear-gradient(135deg, #0f172a 0%, #1d4ed8 100%); border-radius:24px; padding:20px; margin-bottom:14px; color:white; box-shadow:0 12px 30px rgba(29,78,216,0.22); }
+.hero-title { font-size:22px; font-weight:700; margin-bottom:6px; }
+.hero-subtitle { font-size:14px; opacity:0.9; line-height:1.5; }
+button { font-size:17px; padding:14px 16px; width:100%; border:none; border-radius:16px; background:linear-gradient(135deg, #0a84ff 0%, #007aff 100%); color:white; margin-bottom:10px; min-height:46px; font-weight:600; box-shadow:0 4px 12px rgba(0,122,255,0.2); }
+button:active { transform:scale(0.98); }
+.app-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+.feature-btn { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; min-height:92px; background:linear-gradient(135deg, #ffffff 0%, #f7f9fc 100%); color:#1d1d1f; box-shadow:0 4px 14px rgba(15,23,42,0.05); border:1px solid rgba(0,0,0,0.04); }
+.feature-icon { font-size:24px; }
+.feature-text { font-size:14px; font-weight:600; }
+.pill { display:inline-flex; align-items:center; padding:6px 10px; border-radius:999px; background:#eef4ff; color:#2563eb; font-size:13px; font-weight:600; }
+.section-header { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
+.section-header.compact { margin-bottom:0; }
+.compact-actions { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; margin-top:10px; }
+.compact-actions .icon-btn { width:100%; justify-content:center; }
+.list-item { padding:12px 10px; border-bottom:1px solid #ececf3; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
 .list-item:last-child { border-bottom:none; }
-.list-main { flex:1; }
-.icon-btn { background:#eee; border:none; border-radius:8px; padding:8px 10px; font-size:16px; width:auto; margin-bottom:0; flex:0 0 auto; color:#111; }
-.icon-btn.delete { background:#ffdddd; }
-.icon-btn.export { background:#ddeaff; }
-.done { color:green; font-weight:600; }
-.todo { color:#999; }
+.list-main { flex:1 1 100%; font-size:16px; font-weight:600; color:#1d1d1f; }
+.list-actions { display:flex; gap:8px; flex-wrap:wrap; margin-left:auto; }
+.icon-btn { background:#f5f5f5; border:1px solid rgba(0,0,0,0.04); border-radius:12px; padding:10px 12px; font-size:16px; width:auto; margin-bottom:0; flex:0 0 auto; color:#1d1d1f; min-height:44px; box-shadow:none; }
+.icon-btn.delete { background:#fff0f0; color:#d70015; }
+.icon-btn.export { background:#f0f6ff; color:#0a84ff; }
+.done { color:#34c759; font-weight:600; }
+.todo { color:#8e8e93; }
 .set-row { display:flex; gap:8px; }
 .set-row input { flex:1; padding:10px; font-size:16px; }
-input, select { padding:10px; font-size:16px; width:100%; margin-bottom:8px; }
-.small { color:#666; font-size:14px; }
+input, select { padding:12px 10px; font-size:16px; width:100%; margin-bottom:8px; border:1px solid #d1d5db; border-radius:12px; box-sizing:border-box; background:#fff; color:#1d1d1f; }
+input:focus, select:focus { outline:none; border-color:#0a84ff; box-shadow:0 0 0 3px rgba(10,132,255,0.15); }
+.small { color:#6e6e73; font-size:14px; }
 .grid { display:grid; grid-template-columns: 1fr 1fr; gap:8px; }
+.button-row { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+.button-row .icon-btn { width:100%; }
+.filter-stack { display:grid; gap:8px; margin-top:8px; }
+.filter-row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.filter-field { margin-bottom:0; min-height:46px; }
 .meta-row { display:flex; align-items:center; gap:8px; margin-top:8px; }
 .meta-input { flex:1; padding:8px 10px; font-size:15px; margin-bottom:0; }
 .meta-input.compact { width:auto; min-width:110px; }
 .meta-pill { display:inline-flex; align-items:center; gap:6px; padding:6px 10px; background:#f5f5f5; border-radius:999px; }
 .meta-pill input { margin-bottom:0; padding:4px 6px; width:56px; font-size:14px; }
 .modal-backdrop { position:fixed; inset:0; background:rgba(0,0,0,0.45); display:flex; align-items:center; justify-content:center; padding:16px; z-index:2000; }
-.modal-card { background:white; border-radius:12px; width:min(560px, 100%); max-height:80vh; overflow:auto; padding:16px; }
+.modal-card { background:white; border-radius:16px; width:min(560px, 100%); max-height:80vh; overflow:auto; padding:16px; box-shadow:0 16px 40px rgba(0,0,0,0.18); }
 .modal-card h4 { margin-top:0; }
 .modal-list { display:grid; gap:8px; margin-top:12px; }
-.modal-item { display:flex; justify-content:space-between; gap:8px; padding:8px 0; border-bottom:1px solid #eee; }
+.modal-item { display:flex; justify-content:space-between; gap:8px; padding:8px 0; border-bottom:1px solid #ececf3; }
 .modal-item:last-child { border-bottom:none; }
-.prompt-modal-card { background:white; border-radius:14px; width:min(760px, 100%); max-height:85vh; overflow:auto; padding:16px; box-shadow:0 10px 30px rgba(0,0,0,0.2); }
-.prompt-textarea { width:100%; min-height:240px; resize:vertical; padding:12px; border:1px solid #ddd; border-radius:10px; font-size:14px; line-height:1.5; }
+.prompt-modal-card { background:white; border-radius:18px; width:min(760px, 100%); max-height:85vh; overflow:auto; padding:16px; box-shadow:0 20px 48px rgba(0,0,0,0.2); }
+.prompt-textarea { width:100%; min-height:240px; resize:vertical; padding:12px; border:1px solid #d1d5db; border-radius:12px; font-size:14px; line-height:1.5; }
 .prompt-actions { display:flex; gap:8px; margin-top:10px; }
 .prompt-actions button { margin-bottom:0; flex:1; }
-canvas { width:100%; height:260px; border:1px solid #eee; border-radius:8px; }
+canvas { width:100%; height:260px; border:1px solid #ececf3; border-radius:12px; background:#fff; }
+.section-header { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
 .workout-footer {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  background: #f2f2f7;
+  background:rgba(242,242,247,0.9);
   padding: 10px 16px calc(env(safe-area-inset-bottom) + 10px);
-  border-top: 1px solid #ddd;
+  border-top: 1px solid rgba(0,0,0,0.06);
   display: flex;
   gap: 10px;
   z-index: 1000;
+  backdrop-filter:blur(16px);
+  -webkit-backdrop-filter:blur(16px);
 }
 
 .workout-footer button {
   flex: 1;
   margin-bottom: 0;
+}
+
+@media (max-width: 480px) {
+  .container { padding: 14px 12px calc(14px + 96px + env(safe-area-inset-bottom)); }
+  .card { padding: 12px; border-radius: 16px; }
+  .hero-card { padding: 16px; border-radius: 20px; }
+  .app-grid { grid-template-columns: 1fr 1fr; }
+  .grid { grid-template-columns: 1fr; }
+  .filter-row { grid-template-columns: 1fr; }
+  .list-item { padding: 12px 8px; }
+  .list-actions { width:100%; margin-left:0; margin-top:6px; }
+  .compact-actions { grid-template-columns: 1fr; }
 }
 
 </style>
@@ -99,6 +136,7 @@ let state = {
   selectedProgram: null,
   historyFilterFrom: "",
   historyFilterTo: "",
+  historySearch: "",
   previousScreen: null,
   promptModalOpen: false,
 };
@@ -220,13 +258,18 @@ function syncMovementHistoryFromPrograms(){
       const date = day.date || "";
       if(!date) return;
       (day.exercises || []).forEach(ex => {
-        const exerciseName = ex.name || "";
-        const sets = Array.isArray(day.records?.[exerciseName])
-          ? day.records[exerciseName].map(set => ({ kg: set.kg || "", rep: set.rep || "" }))
-          : [];
+        const identity = getExerciseIdentity(ex);
+        const exerciseName = identity.name || "";
+        const exerciseVariant = identity.variant || "";
+        const storageKey = identity.key;
+        const sets = Array.isArray(day.records?.[storageKey])
+          ? day.records[storageKey].map(set => ({ kg: set.kg || "", rep: set.rep || "" }))
+          : (Array.isArray(day.records?.[exerciseName])
+            ? day.records[exerciseName].map(set => ({ kg: set.kg || "", rep: set.rep || "" }))
+            : []);
         const pain = (ex.Pain ?? ex.pain ?? "") || "";
-        const note = day.comments?.[exerciseName] || "";
-        const key = `${date}::${programName}::${day.name || ""}::${exerciseName}`;
+        const note = getExerciseComment(day, ex);
+        const key = `${date}::${programName}::${day.name || ""}::${storageKey}`;
         if(existingKeys.has(key)) return;
 
         history.push({
@@ -235,6 +278,7 @@ function syncMovementHistoryFromPrograms(){
           programName,
           dayName: day.name || "",
           exerciseName,
+          exerciseVariant,
           sets,
           pain,
           note,
@@ -249,13 +293,15 @@ function syncMovementHistoryFromPrograms(){
   }
 }
 
-function buildHistoryEntryFromWorkout({date, programName, dayName, exerciseName, sets, pain, note}){
+function buildHistoryEntryFromWorkout({date, programName, dayName, exerciseName, exerciseVariant, sets, pain, note}){
+  const identityKey = exerciseVariant ? `${exerciseName}::${exerciseVariant}` : exerciseName;
   return {
-    key: `${date}::${programName}::${dayName || ""}::${exerciseName}`,
+    key: `${date}::${programName}::${dayName || ""}::${identityKey}`,
     date,
     programName,
     dayName,
     exerciseName,
+    exerciseVariant: exerciseVariant || "",
     sets: (sets || []).map(set => ({ kg: set.kg || "", rep: set.rep || "" })),
     pain: pain || "",
     note: note || "",
@@ -307,45 +353,72 @@ function render(){
 
   if(state.screen==="home"){
     app.innerHTML = `
-      <div class="card"><button onclick="goPrograms()">📋 Program Seç</button></div>
-      <div class="card"><button onclick="goMeasures()">⚖️ Ölçü Takibi</button></div>
-      <div class="card"><button onclick="goExerciseCharts()">📈 Gelişim Grafikleri</button></div>
+      <div class="hero-card">
+        <div class="hero-title">Spor yolculuğun</div>
+        <div class="hero-subtitle">Programlar, ölçüler ve gelişim grafikleri tek yerde.</div>
+      </div>
+
+      <div class="card app-grid">
+        <button class="feature-btn" onclick="goPrograms()">
+          <span class="feature-icon">📋</span>
+          <span class="feature-text">Program Seç</span>
+        </button>
+        <button class="feature-btn" onclick="goMeasures()">
+          <span class="feature-icon">⚖️</span>
+          <span class="feature-text">Ölçü Takibi</span>
+        </button>
+        <button class="feature-btn" onclick="goExerciseCharts()">
+          <span class="feature-icon">📈</span>
+          <span class="feature-text">Grafikler</span>
+        </button>
+        <button class="feature-btn" onclick="exportAllData()">
+          <span class="feature-icon">📦</span>
+          <span class="feature-text">Export</span>
+        </button>
+      </div>
 
       <div class="card">
-        <h3>🔁 Cihaz Değiştir / Tüm Veriler</h3>
+        <div class="section-header compact">
+          <h3 style="margin:0;">🔁 Cihaz Değiştir / Tüm Veriler</h3>
+        </div>
         <div class="grid">
           <button onclick="exportAllData()">📦 Tüm Verileri Export</button>
           <button onclick="startImportAllData()">📥 Tüm Verileri Import</button>
         </div>
         <div class="small">Programlar, ölçüler ve uygulamadaki diğer veriler (varsa) birlikte taşınır.</div>
       </div>
-
     `;
   }
 
   if(state.screen==="programs"){
     const programs = getPrograms();
-    let html = `<div class="card"><h3>📋 Programlar</h3>`;
+    let html = `<div class="card">
+      <div class="section-header">
+        <h3 style="margin:0;">📋 Programlar</h3>
+        <span class="pill">${programs.length} adet</span>
+      </div>`;
     programs.forEach((p,i)=>{
       html += `
         <div class="list-item" onclick="openProgram(${i})">
           <div class="list-main">${p.name}</div>
-          <button class="icon-btn" onclick="event.stopPropagation(); openProgramInfo(${i})">ⓘ</button>
-          <button class="icon-btn export" onclick="event.stopPropagation(); exportProgramMenu(${i})">📤</button>
-          <button class="icon-btn" onclick="event.stopPropagation(); renameProgram(${i})">✏️</button>
-          <button class="icon-btn delete" onclick="event.stopPropagation(); deleteProgram(${i})">🗑️</button>
+          <div class="list-actions">
+            <button class="icon-btn" onclick="event.stopPropagation(); openProgramInfo(${i})">ⓘ</button>
+            <button class="icon-btn export" onclick="event.stopPropagation(); exportProgramMenu(${i})">📤</button>
+            <button class="icon-btn" onclick="event.stopPropagation(); renameProgram(${i})">✏️</button>
+            <button class="icon-btn delete" onclick="event.stopPropagation(); deleteProgram(${i})">🗑️</button>
+          </div>
         </div>
   `;
 
 });
 
     html += `
-      <div style="display:flex; gap:10px; margin-top:12px;">
-        <button class="icon-btn" style="flex:1; padding:12px;" onclick="importProgram()">➕ Yeni Program Ekle (CSV)</button>
-        <button class="icon-btn" style="flex:1; padding:12px;" onclick="startImportBackup()">📥 Program İçe Aktar</button>
-        <button class="icon-btn" style="flex:1; padding:12px;" onclick="openPromptModal()">🤖 AI Prompt</button>
+      <div class="button-row compact-actions">
+        <button class="icon-btn" onclick="importProgram()">➕ Yeni Program Ekle</button>
+        <button class="icon-btn" onclick="startImportBackup()">📥 İçe Aktar</button>
+        <button class="icon-btn" onclick="openPromptModal()">🤖 AI Prompt</button>
       </div>
-      <div class="small" style="margin-top:8px;">CSV ile yeni program ekleyebilir, JSON yedeği içe aktarabilir veya AI prompt’u kullanabilirsin.</div>
+      <div class="small" class="section-subtitle">CSV ile yeni program ekleyebilir, JSON yedeği içe aktarabilir veya AI prompt’u kullanabilirsin.</div>
     `;
 
     html += `</div><button onclick="goHome()">⬅️ Geri</button>`;
@@ -357,7 +430,7 @@ function render(){
               <h3 style="margin:0;">🤖 AI Program Prompt</h3>
               <button class="icon-btn" onclick="closePromptModal()">✕</button>
             </div>
-            <div class="small" style="margin-top:6px;">Bu metni AI aracına yapıştırarak kişiselleştirilmiş program CSV’si oluşturabilirsin.</div>
+            <div class="small" class="section-subtitle">Bu metni AI aracına yapıştırarak kişiselleştirilmiş program CSV’si oluşturabilirsin.</div>
             <textarea id="aiPromptText" class="prompt-textarea" spellcheck="false">Sen deneyimli bir Strength & Hypertrophy Coach'sun.
 
 Görevin yalnızca spor programı yazmak değildir.
@@ -609,7 +682,7 @@ Kod bloğu kullanma.</textarea>
     });
     html += `
       </div>
-      <div style="height:90px;"></div>
+      <div class="spacer"></div>
     `;
     app.innerHTML = html;
 
@@ -631,7 +704,7 @@ Kod bloğu kullanma.</textarea>
 
     let html = `<div class="card">
       <h3>${day.name}</h3>
-      <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
+      <div class="action-row">
       <div class="small" style="white-space:nowrap;">📅 Antreman Tarihi</div>
       <input
         type="date"
@@ -644,23 +717,24 @@ Kod bloğu kullanma.</textarea>
 
 
     day.exercises.forEach((ex,ei)=>{
-      const comment = day.comments?.[ex.name] || "";
+      const exIdentity = getExerciseIdentity(ex);
+      const exComment = getExerciseComment(day, ex);
       html += `<div class="card">
         <div style="display:flex;justify-content:space-between;align-items:center;">
-          <b>${getExerciseDisplayName(ex)}</b>
-          <button class="icon-btn" onclick="toggleHistory('${ex.name.replace(/'/g,"\\'")}', ${ei})">📜</button>
+          <b>${exIdentity.displayName}</b>
+          <button class="icon-btn" onclick="toggleHistory('${exIdentity.key.replace(/'/g,"\\'")}', ${ei})">📜</button>
         </div>
 
         <div class="small">Hedef: ${ex.sets} x ${ex.reps}</div>
         <div class="meta-row">
           <span class="meta-pill">🩹 <input class="meta-input compact" id="pain-${ei}" type="number" min="0" max="10" inputmode="numeric" placeholder="Pain" value="${ex.Pain ?? ex.pain ?? ""}"></span>
         </div>
-        <textarea id="comment-${ei}" placeholder="📝 Not / Yorum (opsiyonel)" style="width:100%;margin-top:8px;">${comment}</textarea>
-        <div id="history-${ei}" style="display:none;margin-top:8px;"></div>
+        <textarea id="comment-${ei}" placeholder="📝 Not / Yorum (opsiyonel)" class="textarea-field">${exComment}</textarea>
+        <div id="history-${ei}" class="section-subtitle" style="display:none;"></div>
       `;
 
       for(let s=0;s<ex.sets;s++){
-        const old = day.records?.[ex.name]?.[s] || {};
+        const old = getExerciseRecordSets(day, ex)[s] || {};
         html += `
           <div class="set-row">
             <input placeholder="Set ${s+1} KG" id="kg-${ei}-${s}" value="${old.kg||""}">
@@ -686,10 +760,10 @@ Kod bloğu kullanma.</textarea>
         <div class="small">Antrenmanın genel zorluk seviyesi.</div>
         <input id="session-rpe" type="number" min="1" max="10" placeholder="1-10" value="${day.SessionRPE ?? day.sessionRPE ?? ""}">
       </div>
-      <div style="height:90px;"></div>
+      <div class="spacer"></div>
 `    ;
     html += `
-      <div style="position:sticky; bottom:0; background:white; padding:12px; border-top:1px solid #ddd;">
+      <div class="sticky-footer">
         <button onclick="finishDayAndGoBack()">✅ Günü Tamamla & Geri Dön</button>
       </div>
     `;
@@ -803,15 +877,27 @@ Kod bloğu kullanma.</textarea>
     const history = getMovementHistory().slice().sort((a,b)=> b.date.localeCompare(a.date));
     const from = state.historyFilterFrom || "";
     const to = state.historyFilterTo || "";
+    const search = (state.historySearch || "").trim().toLowerCase();
     const filteredHistory = history.filter(item => {
       const itemDate = item.date || "";
       if(from && itemDate < from) return false;
       if(to && itemDate > to) return false;
+      if(search) {
+        const haystack = [
+          item.programName,
+          item.dayName,
+          item.exerciseName,
+          item.exerciseVariant,
+          item.note,
+          item.pain,
+        ].filter(Boolean).join(" ").toLowerCase();
+        if(!haystack.includes(search)) return false;
+      }
       return true;
     });
     const setCount = filteredHistory.reduce((max, item) => Math.max(max, item.sets ? item.sets.length : 0), 0);
 
-    let options = exercises.map(e=>`<option value="${e}">${e}</option>`).join("");
+    let options = exercises.map(e=>`<option value="${e.value}">${e.label}</option>`).join("");
 
     app.innerHTML = `
       <div class="card">
@@ -823,15 +909,18 @@ Kod bloğu kullanma.</textarea>
       </div>
 
       <div class="card">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <div class="section-header">
           <h3 style="margin:0;">🕘 Hareket Geçmişi</h3>
           <button class="icon-btn" onclick="exportMovementHistoryCSV()" title="CSV Export">📤</button>
         </div>
-        <div class="grid" style="margin-top:8px;">
-          <input id="history-from" type="date" value="${from}" onchange="state.historyFilterFrom=this.value; render()" placeholder="Başlangıç">
-          <input id="history-to" type="date" value="${to}" onchange="state.historyFilterTo=this.value; render()" placeholder="Bitiş">
+        <div class="filter-stack">
+          <input id="history-search" class="filter-field" type="search" value="${state.historySearch || ""}" onchange="state.historySearch=this.value; render()" placeholder="Hareket, program veya not ara">
+          <div class="filter-row">
+            <input id="history-from" class="filter-field" type="date" value="${from}" onchange="state.historyFilterFrom=this.value; render()" placeholder="Başlangıç">
+            <input id="history-to" class="filter-field" type="date" value="${to}" onchange="state.historyFilterTo=this.value; render()" placeholder="Bitiş">
+          </div>
         </div>
-        <div class="small" style="margin-top:8px;">Tarih bazlı, programlardan bağımsız geçmiş kayıtlar.</div>
+        <div class="small" class="section-subtitle">Tarih bazlı, programlardan bağımsız geçmiş kayıtlar.</div>
         ${filteredHistory.length === 0 ? "<div class='small' style='margin-top:8px;'>Henüz geçmiş kayıt yok.</div>" : `
           <div class="table-wrap" style="margin-top:10px;">
             <table>
@@ -840,6 +929,7 @@ Kod bloğu kullanma.</textarea>
                   <th>Tarih</th>
                   <th>Program Adı</th>
                   <th>Hareket Adı</th>
+                  <th>Varyant</th>
                   ${Array.from({length:setCount},(_,i)=>`<th>Set${i+1}</th>`).join("")}
                   <th>Pain Score</th>
                   <th>Not</th>
@@ -851,6 +941,7 @@ Kod bloğu kullanma.</textarea>
                     <td>${formatDisplayDate(item.date)}</td>
                     <td>${item.programName || ""}</td>
                     <td>${item.exerciseName || ""}</td>
+                    <td>${item.exerciseVariant || ""}</td>
                     ${Array.from({length:setCount},(_,i)=>`<td>${item.sets && item.sets[i] ? `${item.sets[i].kg || ""}x${item.sets[i].rep || ""}` : ""}</td>`).join("")}
                     <td>${item.pain || ""}</td>
                     <td>${item.note || ""}</td>
@@ -979,16 +1070,17 @@ function saveDay(){
     ex.Pain = painValue;
     ex.pain = painValue;
 
-    records[ex.name]=[];
+    const storageKey = getExerciseStorageKey(ex);
+    records[storageKey]=[];
     for(let s=0;s<ex.sets;s++){
       const kg = document.getElementById(`kg-${ei}-${s}`).value;
       const rep = document.getElementById(`rep-${ei}-${s}`).value;
-      records[ex.name].push({kg,rep});
+      records[storageKey].push({kg,rep});
     }
 
     const c = document.getElementById(`comment-${ei}`).value;
     if(c && c.trim()){
-      comments[ex.name] = c.trim();
+      comments[storageKey] = c.trim();
     }
   });
   day.records = records;
@@ -1003,13 +1095,15 @@ function saveDay(){
 
   day.exercises.forEach((ex,ei)=>{
     const painValue = document.getElementById(`pain-${ei}`)?.value || "";
-    const note = comments[ex.name] || "";
-    const sets = records[ex.name] || [];
+    const storageKey = getExerciseStorageKey(ex);
+    const note = comments[storageKey] || "";
+    const sets = records[storageKey] || [];
     const entry = buildHistoryEntryFromWorkout({
       date: date || day.date || "",
       programName,
       dayName: day.name || "",
       exerciseName: ex.name,
+      exerciseVariant: getExerciseVariant(ex),
       sets,
       pain: painValue,
       note,
@@ -1091,7 +1185,7 @@ function renderProgramInfoModal(i){
   return `
     <div class="modal-backdrop" onclick="closeProgramInfo()">
       <div class="modal-card" onclick="event.stopPropagation()">
-        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <div class="section-header">
           <h4>ℹ️ Program Bilgisi</h4>
           <button class="icon-btn" onclick="closeProgramInfo()">✕</button>
         </div>
@@ -1784,11 +1878,42 @@ function importProgramWorkoutCSV(header, rows){
   importProgramBackup(program);
 }
 
+function getExerciseVariant(ex){
+  return (ex?.ExerciseVariant ?? ex?.variant ?? "").toString().trim();
+}
+
+function getExerciseIdentity(ex){
+  const name = (ex?.name || "").toString().trim();
+  const variant = getExerciseVariant(ex);
+  return {
+    name,
+    variant,
+    key: variant ? `${name}::${variant}` : name,
+    displayName: variant ? `${name} - ${variant}` : name,
+  };
+}
+
+function getExerciseStorageKey(ex){
+  return getExerciseIdentity(ex).key;
+}
+
+function getExerciseRecordSets(day, ex){
+  const key = getExerciseStorageKey(ex);
+  if(day?.records && Array.isArray(day.records[key])) return day.records[key];
+  const legacyName = (ex?.name || "").toString().trim();
+  if(day?.records && Array.isArray(day.records[legacyName])) return day.records[legacyName];
+  return [];
+}
+
+function getExerciseComment(day, ex){
+  const key = getExerciseStorageKey(ex);
+  if(day?.comments && day.comments[key] !== undefined) return day.comments[key];
+  const legacyName = (ex?.name || "").toString().trim();
+  return day?.comments?.[legacyName] || "";
+}
+
 function getExerciseDisplayName(ex){
-  const name = ex?.name || "";
-  const variant = (ex?.ExerciseVariant ?? ex?.variant ?? "").toString().trim();
-  if(!variant) return name;
-  return `${name} - ${variant}`;
+  return getExerciseIdentity(ex).displayName;
 }
 
 function exportMovementHistoryCSV(){
@@ -1802,13 +1927,16 @@ function exportMovementHistoryCSV(){
     return true;
   });
   const setCount = filtered.reduce((max, item) => Math.max(max, item.sets ? item.sets.length : 0), 0);
-  const headers = ["Tarih","Program Adı","Hareket Adı", ...Array.from({length:setCount},(_,i)=>`Set${i+1}`), "Pain Score","Not"];
+  const headers = ["Tarih","Program Adı","Hareket Adı","Varyant", ...Array.from({length:setCount},(_,i)=>`Set${i+1}`), "Pain Score","Not"];
   const rows = [headers.join(",")];
   filtered.forEach(item=>{
+    const exerciseName = item.exerciseName || "";
+    const exerciseVariant = item.exerciseVariant || "";
     const values = [
       formatDisplayDate(item.date),
       item.programName || "",
-      item.exerciseName || "",
+      exerciseName,
+      exerciseVariant,
       ...Array.from({length:setCount},(_,i)=> item.sets && item.sets[i] ? `${item.sets[i].kg || ""}x${item.sets[i].rep || ""}` : ""),
       item.pain || "",
       item.note || ""
@@ -1821,44 +1949,51 @@ function exportMovementHistoryCSV(){
 
 function collectAllExercises(){
   const programs = getPrograms();
-  const set = new Set();
+  const list = [];
+  const seen = new Set();
 
   programs.forEach(p=>{
     p.days.forEach(d=>{
-      if(d.records){
-        Object.keys(d.records).forEach(exName=>{
-          set.add(exName);
+      (d.exercises || []).forEach(ex=>{
+        const identity = getExerciseIdentity(ex);
+        if(!identity.name) return;
+        if(seen.has(identity.key)) return;
+        seen.add(identity.key);
+        list.push({
+          label: identity.displayName,
+          value: identity.key,
+          name: identity.name,
+          variant: identity.variant,
         });
-      }
+      });
     });
   });
 
-  return Array.from(set).sort();
+  return list.sort((a,b)=> a.label.localeCompare(b.label));
 }
 
 function drawExerciseChart(){
-  const name = document.getElementById("exerciseSelect").value;
+  const selectedKey = document.getElementById("exerciseSelect").value;
   const programs = getPrograms();
 
   let points = [];
 
   programs.forEach(p=>{
     p.days.forEach(d=>{
-      if(d.records && d.records[name]){
-        // o günkü en iyi set
-        let best = 0;
-        d.records[name].forEach(s=>{
-          const kg = parseFloat(s.kg);
-          if(!isNaN(kg)){
-            if(kg > best) best = kg;
-          }
+      const matchingEx = (d.exercises || []).find(ex => getExerciseIdentity(ex).key === selectedKey);
+      if(!matchingEx) return;
+
+      const recordSets = getExerciseRecordSets(d, matchingEx);
+      let best = 0;
+      recordSets.forEach(s=>{
+        const kg = parseFloat(s.kg);
+        if(!isNaN(kg) && kg > best) best = kg;
+      });
+      if(best > 0){
+        points.push({
+          x: d.name,
+          v: best
         });
-        if(best > 0){
-          points.push({
-            x: d.name,
-            v: best
-          });
-        }
       }
     });
   });
@@ -1867,7 +2002,7 @@ function drawExerciseChart(){
 }
 let openHistoryIndex = null;
 
-function toggleHistory(exName, ei){
+function toggleHistory(exKey, ei){
   const el = document.getElementById("history-" + ei);
 
   if(el.style.display === "block"){
@@ -1877,7 +2012,6 @@ function toggleHistory(exName, ei){
     return;
   }
 
-  // başka açık varsa kapat
   if(openHistoryIndex !== null){
     const old = document.getElementById("history-" + openHistoryIndex);
     if(old){
@@ -1886,7 +2020,7 @@ function toggleHistory(exName, ei){
     }
   }
 
-  const history = collectExerciseHistory(exName);
+  const history = collectExerciseHistory(exKey);
 
   if(history.length === 0){
     el.innerHTML = `<div class="small">Bu hareket için geçmiş kayıt yok.</div>`;
@@ -1894,7 +2028,7 @@ function toggleHistory(exName, ei){
     let html = `<div class="small"><b>📜 Son Kayıtlar</b></div>`;
 
     history.slice(0,3).forEach(h=>{
-      html += `<div class="card" style="margin-top:8px;">
+      html += `<div class="card" class="section-subtitle">
         <div class="small"><b>${h.date || "Tarih yok (eski kayıt)"}</b></div>
       `;
 
@@ -1916,24 +2050,29 @@ function toggleHistory(exName, ei){
   openHistoryIndex = ei;
 }
 
-// tüm programlardan o hareketin geçmişini toplar
-function collectExerciseHistory(name){
+function collectExerciseHistory(exKey){
   const programs = getPrograms();
   let list = [];
+  const targetKey = (exKey || "").toString().trim();
+  const [targetName, targetVariant] = targetKey.split("::");
 
   programs.forEach(p=>{
     p.days.forEach(d=>{
-      if(d.records && d.records[name]){
+      (d.exercises || []).forEach(ex=>{
+        const identity = getExerciseIdentity(ex);
+        const matches = identity.key === targetKey || (!targetKey && identity.name === targetName) || (identity.name === targetName && identity.variant === targetVariant);
+        if(!matches) return;
+
+        const sets = getExerciseRecordSets(d, ex);
         list.push({
           date: d.date,
-          sets: d.records[name],
-          comment: d.comments ? d.comments[name] : ""
+          sets,
+          comment: getExerciseComment(d, ex),
         });
-      }
+      });
     });
   });
 
-  // tarihe göre sırala (yeni → eski)
   list.sort((a,b)=>{
     if(!a.date) return 1;
     if(!b.date) return -1;
